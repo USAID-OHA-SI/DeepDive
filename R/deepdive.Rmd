@@ -16,6 +16,7 @@ library(tidyverse)
 library(scales)
 library(knitr)
 library(kableExtra)
+library(gridExtra)
 library(ICPIutilities)
 library(RearWindow)
 ```
@@ -27,7 +28,7 @@ library(RearWindow)
     # read_rds("~/ICPI/Data/MER_Structured_Dataset_OU_IM_FY17-18_20180921_v2_2.rds") %>% 
     # filter(operatingunit == "Nigeria") %>% 
     rename_official() %>% 
-    add_cumulative() %>% 
+    #add_cumulative() %>% 
     rw_gen_nn_target()
     
 ```
@@ -57,13 +58,16 @@ The following visualizations depict FY18 progress for select PEPFAR MER indicato
 ```{r achievement_data, echo=FALSE}
 
 df_ach_mech <- df_mech %>% 
-  filter(standardizeddisaggregate %in% c("Total Numerator", "Total Denominator")) %>% 
+    filter(((indicator %in% ind) & 
+            standardizeddisaggregate == "Total Numerator") |
+         ((indicator %in% c("TB_ART", "TB_STAT", "TX_PVLS", "TX_RET")) &
+           standardizeddisaggregate == "Total Denominator")) %>% 
   mutate(indicator = ifelse(numeratordenom == "D", paste0(indicator, "_D"), indicator)) %>% 
   group_by(mechanismid, indicator) %>% 
-  summarise_at(vars(fy2018_targets, fy2018cum), sum, na.rm = TRUE) %>% 
+  summarise_at(vars(fy2018_targets, fy2018apr), sum, na.rm = TRUE) %>% 
   ungroup() %>% 
   filter(fy2018_targets != 0) %>% 
-  mutate(fy2018ach = round(fy2018cum / fy2018_targets, 3)) %>% 
+  mutate(fy2018ach = round(fy2018apr / fy2018_targets, 3)) %>% 
   arrange(fy2018ach) %>% 
   mutate(ach_color = case_when(fy2018ach < threshold["low"]  ~ color["ubuntu"],
                                fy2018ach < threshold["med"]  ~ color["amazon"],
@@ -83,10 +87,154 @@ df_ach_mech %>%
                          hjust=-.5, vjust=.3, color = color["txtgray"],
                          na.rm = TRUE) +
   coord_flip() +
-  labs(x = "", y = "") + 
+  labs(x = "", y = "", title = "Overall Achievement") + 
   rw_plot_theme() +
   theme(axis.text.x = ggplot2::element_blank())
 
+```
+
+
+```{r cascade_delta, echo=FALSE}
+
+df_cascade <- df_mech %>% 
+  filter(indicator %in% c("HTS_TST", "HTS_TST_POS", "TX_NEW", "TX_CURR"),
+         standardizeddisaggregate == "Total Numerator") %>%
+  select(-fy2019_targets) %>% 
+  group_by(indicator) %>% 
+  summarise_at(vars(matches("target|apr")), sum, nm.rm = TRUE) %>% 
+  ungroup() %>% 
+  gather(ind, val, -indicator) %>% 
+  mutate(pd = paste0("FY", str_sub(ind, 5L, 6L)),
+         type = ifelse(str_detect(ind, "targets"), "TARGET", "RESULT")) %>% 
+  select(-ind) %>% 
+  spread(type, val) %>% 
+  mutate(indicator = factor(indicator, levels = c("HTS_TST", "HTS_TST_POS", "TX_NEW", "TX_CURR")))
+           
+
+df_cascade %>% 
+  ggplot(aes(pd, RESULT)) +
+  geom_col() +
+  geom_errorbar(aes(ymax=TARGET, ymin=TARGET), width=0.75, size =1, color= color["amazon"]) +
+  scale_y_continuous(label = comma) +
+  facet_wrap(indicator ~ ., scales = "free_y") +
+  labs(x = "", y = "") +
+  rw_plot_theme()
+
+v_hts <- df_cascade %>% 
+  filter(indicator == "HTS_TST",
+         pd == "FY18") %>% 
+  ggplot(aes(indicator, RESULT)) +
+  geom_col() +
+  geom_errorbar(aes(ymax=TARGET, ymin=TARGET), width=0.75, size =1, color= color["amazon"]) +
+  scale_y_continuous(label = comma) +
+  labs(x = "", y = "", title = "Cascade") +
+  rw_plot_theme()
+
+v_postx <- df_cascade %>% 
+  filter(indicator %in% c("HTS_TST_POS", "TX_NEW"),
+         pd == "FY18") %>% 
+  ggplot(aes(indicator, RESULT)) +
+  geom_col() +
+  geom_errorbar(aes(ymax=TARGET, ymin=TARGET), width=0.75, size =1, color= color["amazon"]) +
+  scale_y_continuous(label = comma) +
+  labs(x = "", y = "", title = " ") +
+  rw_plot_theme()
+
+grid.arrange(v_hts, v_postx, ncol = 2)
+  rm(v_hts, v_postx)
+```
+
+```{cascade_table}
+
+df_mech %>% 
+  filter(indicator %in% c("HTS_TST", "HTS_TST_POS", "TX_NEW", "TX_CURR"),
+         standardizeddisaggregate == "Total Numerator") %>%
+  group_by(indicator) %>% 
+  summarise_at(vars(matches("fy2018")), sum, nm.rm = TRUE) %>% 
+  ungroup() %>%
+  gather(pd, val, -indicator) %>% 
+  mutate(pd = str_remove(pd, "fy2018_|fy2018") %>% toupper(.)) %>% 
+  spread(indicator, val) %>% 
+  mutate(pd = factor(pd, levels = c("Q1", "Q2", "Q3", "Q4", "APR", "TARGETS"))) %>% 
+  arrange(pd) %>% 
+  mutate(Linkage = percent(TX_NEW / HTS_TST_POS, accuracy = 2),
+         Positivity = percent(HTS_TST_POS / HTS_TST,accuracy = 2)) %>% 
+  kable(format.args = list(big.mark = ",", zero.print = FALSE)) %>% 
+  #add_header_above(c(" " = 1, "FY18 Q1" = 3, "Q2" = 3, "Q3" = 3, "Q4" = 3)) %>% 
+  kable_styling()
+```
+
+```{r hts_state}
+
+df_hts_state <- df_mech %>% 
+  filter(indicator == "HTS_TST",
+         standardizeddisaggregate == "Total Numerator") %>%
+  group_by(snu1) %>% 
+  summarize_at(vars(fy2018apr, fy2018_targets), sum, na.rm = TRUE) %>% 
+  ungroup() %>% 
+  mutate(fy2018ach = round(fy2018apr/fy2018_targets, 3))
+
+v_test <- df_hts_state %>% 
+  ggplot(aes(reorder(snu1, fy2018apr), fy2018apr)) +
+  geom_col() +
+  geom_errorbar(aes(ymax=fy2018_targets, ymin=fy2018_targets), width=0.75, size =1, color= color["amazon"]) +
+  scale_y_continuous(label = comma) +
+  coord_flip() +
+  labs(x= "", y = "testing volume, FY18", title = "Testing volume by state") +
+  rw_plot_theme() #+
+  #theme(panel.grid.major = element_line(color=color["lgray"]))
+
+df_yield <- df_mech %>% 
+  filter(indicator %in% c("HTS_TST", "HTS_TST_POS"),
+         standardizeddisaggregate == "Total Numerator") %>%
+  group_by(snu1, indicator) %>% 
+  summarize_at(vars(fy2018apr), sum, na.rm = TRUE) %>% 
+  ungroup() %>% 
+  spread(indicator, fy2018apr) %>% 
+  filter(!is.na(HTS_TST)) %>% 
+  mutate(positivity = HTS_TST_POS / HTS_TST)
+
+v_yield <- df_yield %>% 
+  ggplot(aes(reorder(snu1, HTS_TST), positivity)) +
+  geom_col() +
+  geom_text(aes(y = 0, label = percent(positivity, accuracy = 1)), hjust = -.2) +
+  scale_y_continuous(label = percent) +
+  coord_flip() +
+  labs(x = " ", y = "", title = "Testing Positivity") +
+  rw_plot_theme() +
+  theme(axis.text.x = element_text(color = "white"),
+        axis.text.y = element_text(color = "white"))
+  
+grid.arrange(v_test, v_yield, ncol = 2)
+rm(v_test, v_yield)
+```
+
+```{r htstx}
+df_htstx <- df_mech %>% 
+  filter(indicator %in% c("HTS_TST_POS", "TX_NEW"),
+         standardizeddisaggregate == "Total Numerator") %>%
+  group_by(snu1, indicator) %>% 
+  summarise_at(vars(fy2018apr), sum, nm.rm = TRUE) %>% 
+  ungroup() %>% 
+  filter()
+
+lvls <- df_htstx %>% 
+  filter(indicator == "HTS_TST_POS") %>% 
+  arrange(desc(fy2018apr)) %>% 
+  pull(snu1) %>% 
+  fct_inorder()
+
+df_htstx %>%
+  mutate(snu1 = factor(snu1, lvls)) %>% 
+  ggplot(aes(indicator, fy2018apr)) +
+  geom_col() +
+  geom_text(y = 0, aes(label = comma(fy2018apr)), vjust = -.5) +
+  facet_wrap(snu1 ~ .) +
+  #scale_y_continuous(label = comma) +
+  labs (x = "", y = "") +
+  rw_plot_theme() +
+  theme(axis.text.y = element_blank())
+  
 ```
 
 ```{r hts_mods_tbl, echo=FALSE}
@@ -114,8 +262,8 @@ df_mech %>%
   unite(ind, c("pd", "indicator")) %>% 
   spread(ind, val, fill = 0) %>% 
   kable(format.args = list(big.mark = ",", zero.print = FALSE),
-        col.names = c("", rep(c("Pos", "Total", "Yield (%)"), 3))) %>% 
-  add_header_above(c(" " = 1, "FY18Q1" = 3, "Q2" = 3, "Q3" = 3)) %>% 
+        col.names = c("", rep(c("Pos", "Total", "Yield (%)"), 4))) %>% 
+  add_header_above(c(" " = 1, "FY18 Q1" = 3, "Q2" = 3, "Q3" = 3, "Q4" = 3)) %>% 
   kable_styling()
 
 ```
@@ -183,31 +331,6 @@ df_hts_age %>%
   rw_plot_theme()  
 ```
 
-```{r cascade_delta, echo=FALSE}
 
-df_cascade <- df_mech %>% 
-  filter(indicator %in% c("HTS_TST", "HTS_TST_POS", "TX_NEW", "TX_CURR"),
-         standardizeddisaggregate == "Total Numerator") %>%
-  select(-fy2019_targets) %>% 
-  group_by(indicator) %>% 
-  summarise_at(vars(matches("target|cum|apr")), sum, nm.rm = TRUE) %>% 
-  ungroup() %>% 
-  gather(ind, val, -indicator) %>% 
-  mutate(pd = paste0("FY", str_sub(ind, 5L, 6L)),
-         type = ifelse(str_detect(ind, "targets"), "TARGET", "RESULT")) %>% 
-  select(-ind) %>% 
-  spread(type, val)
-           
-
-df_cascade %>% 
-  ggplot(aes(pd, RESULT)) +
-  geom_col() +
-  geom_errorbar(aes(ymax=TARGET, ymin=TARGET), width=0.75, size =1, color= color["amazon"]) +
-  scale_y_continuous(label = comma) +
-  facet_wrap(indicator ~ ., scales = "free_y") +
-  labs(x = "", y = "") +
-  rw_plot_theme()
-  
-```
 
 
