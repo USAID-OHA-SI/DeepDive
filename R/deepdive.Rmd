@@ -266,6 +266,23 @@ df_mech %>%
   add_header_above(c(" " = 1, "FY18 Q1" = 3, "Q2" = 3, "Q3" = 3, "Q4" = 3)) %>% 
   kable_styling()
 
+#apr
+df_mech %>% 
+  filter(indicator %in% c("HTS_TST","HTS_TST_NEG", "HTS_TST_POS"),
+         standardizeddisaggregate %in% 
+           c("Modality/Age/Sex/Result", "Modality/Age Aggregated/Sex/Result")) %>% 
+  group_by(modality, indicator) %>% 
+  summarize_at(vars(fy2018apr), sum, na.rm = TRUE) %>% 
+  ungroup() %>% 
+  spread(indicator, fy2018apr) %>% 
+  mutate(Yield = percent(HTS_TST_POS / HTS_TST, accuracy = 1)) %>% 
+  filter(Yield != "NaN%") %>% 
+  select(-HTS_TST_NEG) %>% 
+  rename(Total = HTS_TST,
+         `Pos.` = HTS_TST_POS) %>% 
+  arrange(desc(Total)) %>% 
+  kable(format.args = list(big.mark = ",", zero.print = FALSE)) %>% 
+  kable_styling()
 ```
 
 ```{r hts_mod_sex, echo=FALSE}
@@ -275,15 +292,15 @@ df_hts_mod <- df_mech %>%
          standardizeddisaggregate %in% 
            c("Modality/Age/Sex/Result", "Modality/Age Aggregated/Sex/Result")) %>% 
   group_by(modality) %>% 
-  summarize_at(vars(fy2018cum), sum, na.rm = TRUE) %>% 
+  summarize_at(vars(fy2018apr), sum, na.rm = TRUE) %>% 
   ungroup() %>% 
-  filter(fy2018cum != 0)
+  filter(fy2018apr != 0)
 
 df_hts_mod %>% 
-  ggplot(aes(reorder(modality, fy2018cum), fy2018cum)) +
+  ggplot(aes(reorder(modality, fy2018apr), fy2018apr)) +
   geom_col() +
   coord_flip() +
-  labs(title = "Positive Testing by Modality, FY18",x = "", y = "positive tests, cumulative") +
+  labs(title = "Positive Testing by Modality, FY18",x = "", y = "positive tests, FY18") +
   scale_y_continuous(label = comma) +
   rw_plot_theme()
 
@@ -292,16 +309,16 @@ df_hts_sex <- df_mech %>%
          standardizeddisaggregate %in% 
            c("Modality/Age/Sex/Result", "Modality/Age Aggregated/Sex/Result")) %>% 
   group_by(modality, sex) %>% 
-  summarize_at(vars(fy2018cum), sum, na.rm = TRUE) %>% 
+  summarize_at(vars(fy2018apr), sum, na.rm = TRUE) %>% 
   ungroup() %>% 
-  filter(fy2018cum != 0) %>% 
+  filter(fy2018apr != 0) %>% 
   group_by(modality) %>% 
-  mutate(mod_total = sum(fy2018cum)) %>% 
+  mutate(mod_total = sum(fy2018apr)) %>% 
   ungroup() %>% 
   mutate(sex = ifelse(sex == "Unknown Sex", "Unkown", sex))
 
 df_hts_sex %>% 
-  ggplot(aes(reorder(modality, mod_total), fy2018cum)) +
+  ggplot(aes(reorder(modality, mod_total), fy2018apr)) +
   geom_col() +
   coord_flip() +
   facet_grid(~ sex) +
@@ -315,14 +332,14 @@ df_hts_age <- df_mech %>%
            c("Modality/Age/Sex/Result", "Modality/Age Aggregated/Sex/Result"),
          agesemifine != "Unknown Age") %>% 
   group_by(indicator, agesemifine) %>% 
-  summarize_at(vars(fy2018cum), sum, na.rm = TRUE) %>% 
+  summarize_at(vars(fy2018apr), sum, na.rm = TRUE) %>% 
   ungroup() %>% 
-  filter(fy2018cum != 0) %>% 
+  filter(fy2018apr != 0) %>% 
   dplyr::arrange(desc(agesemifine)) %>%
   mutate(agesemifine = forcats::as_factor(agesemifine))
 
 df_hts_age %>% 
-  ggplot(aes(agesemifine, fy2018cum)) +
+  ggplot(aes(agesemifine, fy2018apr)) +
   geom_col() +
   coord_flip() +
   facet_wrap(~ indicator, scales = "free_x") +
