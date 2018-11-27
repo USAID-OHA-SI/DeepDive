@@ -1,7 +1,7 @@
 ---
 title: "Nigeria Partner Deep Dive"
 date: "November 15, 2018"
-output: html_document
+output: ioslides_presentation
 ---
 
 ```{r setup, include=FALSE}
@@ -130,7 +130,7 @@ df_cascade %>%
 
 ## Treatment cascade
 
-``` {r cascade}
+``` {r cascade, echo=FALSE}
 v_hts <- df_cascade %>% 
   filter(indicator == "HTS_TST",
          pd == "FY18") %>% 
@@ -157,7 +157,7 @@ grid.arrange(v_hts, v_postx, ncol = 2)
 
 ## Cascade table
 
-```{r cascade_table}
+```{r cascade_table, echo=FALSE}
 
 df_mech %>% 
   filter(indicator %in% c("HTS_TST", "HTS_TST_POS", "TX_NEW", "TX_CURR"),
@@ -179,7 +179,7 @@ df_mech %>%
 
 ## HTS achievement & positivity by state
 
-```{r hts_state}
+```{r hts_state, echo=FALSE}
 
 df_hts_state <- df_mech %>% 
   filter(indicator == "HTS_TST",
@@ -226,7 +226,7 @@ rm(df_hts_state, v_test, v_yield, df_yield)
 
 ## Testing to treatment (proxy linkage)
 
-```{r htstx}
+```{r htstx, echo=FALSE}
 df_htstx <- df_mech %>% 
   filter(indicator %in% c("HTS_TST_POS", "TX_NEW"),
          standardizeddisaggregate == "Total Numerator") %>%
@@ -257,7 +257,7 @@ rm(lvls)
 
 ## Testing to treatment (proxy linkage) table
 
-```{r htstx table}
+```{r htstx table, echo=FALSE}
 df_htstx %>% 
   spread(indicator, fy2018apr) %>% 
   mutate(`Proxy Linkage (%)` = round(TX_NEW / HTS_TST_POS, 2) * 100) %>% 
@@ -268,7 +268,7 @@ df_htstx %>%
 ```
 
 
-```{r}
+```{r, echo=FALSE}
 df_mod <- df_mech %>% 
   filter(indicator %in% c("HTS_TST", "HTS_TST_POS"),
          standardizeddisaggregate %in% 
@@ -418,6 +418,59 @@ df_hts_age %>%
 
 ```
 
+## Treatment
+
+```{r tx_table, echo=FALSE}
+
+df_mech %>% 
+  filter(indicator %in% c("TX_NEW", "TX_CURR", "TX_NET_NEW"),
+         standardizeddisaggregate == "Total Numerator") %>% 
+  group_by(indicator) %>% 
+  summarize_at(vars(starts_with("fy2018q"), fy2018apr, fy2018_targets), sum, na.rm = TRUE) %>% 
+  ungroup() %>% 
+  gather(pd, val, starts_with("fy2018")) %>% 
+  spread(indicator, val) %>% 
+  mutate(pd = factor(pd, 
+                     levels = c("fy2018q1", "fy2018q2", "fy2018q3", "fy2018q4", "fy2018apr", "fy2018_targets"))) %>% 
+  arrange(pd) %>% 
+  mutate(pd = str_remove_all(pd, "20") %>% toupper(.),
+         pd = str_replace(pd, "_", " "),
+         pd = str_replace(pd, "A", " A")) %>% 
+  kable(format.args = list(big.mark = ",", zero.print = FALSE)) %>%
+  kable_styling()
+
+```
+
+## TX_NET_NEW
+
+```{r txnetnew, echo=FALSE}
+
+df_nn <- df_mech %>% 
+  filter(indicator %in% c("TX_CURR", "TX_NET_NEW"),
+         standardizeddisaggregate == "Total Numerator") %>% 
+  group_by(indicator) %>% 
+  summarise_at(vars(contains("q")), sum, na.rm = TRUE) %>% 
+  gather(pd, val, -indicator) %>% 
+  spread(indicator, val) %>% 
+  mutate(tx_curr_gr = ifelse(TX_NET_NEW > 0, TX_CURR - TX_NET_NEW, TX_CURR),
+         tx_nn_gr = ifelse(TX_NET_NEW > 0, TX_NET_NEW, 0)) %>% 
+  select(-TX_CURR, -TX_NET_NEW) %>% 
+  gather(indicator, val, -pd) %>% 
+  mutate(pd = str_remove(pd, "20") %>% toupper(.),
+         indicator = case_when(indicator == "tx_nn_gr" ~ "TX_NET_NEW",
+                               TRUE                    ~ "TX_CURR"),
+         indicator = factor(indicator, levels = c("TX_NET_NEW","TX_CURR")))
+  
+df_nn %>% 
+  ggplot(aes(pd, fill = indicator)) + 
+  geom_bar(aes(weight = val), 
+           position = "stack") +
+  scale_y_continuous(label = comma) +
+  labs(x = "", y = "") +
+  rw_plot_theme()
+  
+  
+```
 
 
 
