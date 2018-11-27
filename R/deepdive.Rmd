@@ -465,6 +465,7 @@ df_nn %>%
   ggplot(aes(pd, fill = indicator)) + 
   geom_bar(aes(weight = val), 
            position = "stack") +
+  scale_fill_manual(values=c("#335b8e", "#a2bcdd")) +
   scale_y_continuous(label = comma) +
   labs(x = "", y = "") +
   rw_plot_theme()
