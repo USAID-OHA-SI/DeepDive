@@ -1,6 +1,5 @@
 ---
 title: "Nigeria Partner Deep Dive"
-author: "AHC"
 date: "November 15, 2018"
 output: html_document
 ---
@@ -24,11 +23,8 @@ library(RearWindow)
 
 ```{r import, echo=FALSE}
 #import,clean up names and add cumulative
-  df_nga <- read_rds("~/ICPI/Data/MER_Structured_Dataset_NIGERIA_SIDHAS_PSNU_IM_FY17-18_GENIE_20181120.rds") %>% 
-    # read_rds("~/ICPI/Data/MER_Structured_Dataset_OU_IM_FY17-18_20180921_v2_2.rds") %>% 
-    # filter(operatingunit == "Nigeria") %>% 
+  df_nga <- read_rds("~/ICPI/Data/MER_Structured_Dataset_PSNU_IM_FY17-18_20181115_v1_1_Nigeria.rds") %>% 
     rename_official() %>% 
-    #add_cumulative() %>% 
     rw_gen_nn_target()
     
 ```
@@ -49,11 +45,16 @@ mech <- unique(df_mech$mechanismid)
 mechname <- unique(df_mech$implementingmechanismname)
 partner <- unique(df_mech$primepartner)
 
+ind <- c("GEND_GBV", "HTS_TST", "HTS_TST_POS", "OVC_SERV", 
+         "PMTCT_ART", "PMTCT_STAT", "TB_ART", "TB_STAT", 
+         "TX_CURR", "TX_NEW", "TX_PVLS", "TX_RET")
 ```
 ## Deep dive for partner review in Nigeria.
 
 The following visualizations depict FY18 progress for select PEPFAR MER indicators for `r partner`'s `r mech`: `r mechname`. 
 
+
+## Overall achievement 
 
 ```{r achievement_data, echo=FALSE}
 
@@ -91,8 +92,12 @@ df_ach_mech %>%
   rw_plot_theme() +
   theme(axis.text.x = ggplot2::element_blank())
 
+rm(df_ach_mech)
+
 ```
 
+
+## Comparing changes in cascade indicators between FY17 and FY18
 
 ```{r cascade_delta, echo=FALSE}
 
@@ -101,7 +106,7 @@ df_cascade <- df_mech %>%
          standardizeddisaggregate == "Total Numerator") %>%
   select(-fy2019_targets) %>% 
   group_by(indicator) %>% 
-  summarise_at(vars(matches("target|apr")), sum, nm.rm = TRUE) %>% 
+  summarise_at(vars(matches("target|apr")), sum, na.rm = TRUE) %>% 
   ungroup() %>% 
   gather(ind, val, -indicator) %>% 
   mutate(pd = paste0("FY", str_sub(ind, 5L, 6L)),
@@ -120,6 +125,12 @@ df_cascade %>%
   labs(x = "", y = "") +
   rw_plot_theme()
 
+
+```
+
+## Treatment cascade
+
+``` {r cascade}
 v_hts <- df_cascade %>% 
   filter(indicator == "HTS_TST",
          pd == "FY18") %>% 
@@ -141,16 +152,18 @@ v_postx <- df_cascade %>%
   rw_plot_theme()
 
 grid.arrange(v_hts, v_postx, ncol = 2)
-  rm(v_hts, v_postx)
+  rm(v_hts, v_postx, df_cascade)
 ```
 
-```{cascade_table}
+## Cascade table
+
+```{r cascade_table}
 
 df_mech %>% 
   filter(indicator %in% c("HTS_TST", "HTS_TST_POS", "TX_NEW", "TX_CURR"),
          standardizeddisaggregate == "Total Numerator") %>%
   group_by(indicator) %>% 
-  summarise_at(vars(matches("fy2018")), sum, nm.rm = TRUE) %>% 
+  summarise_at(vars(matches("fy2018")), sum, na.rm = TRUE) %>% 
   ungroup() %>%
   gather(pd, val, -indicator) %>% 
   mutate(pd = str_remove(pd, "fy2018_|fy2018") %>% toupper(.)) %>% 
@@ -163,6 +176,8 @@ df_mech %>%
   #add_header_above(c(" " = 1, "FY18 Q1" = 3, "Q2" = 3, "Q3" = 3, "Q4" = 3)) %>% 
   kable_styling()
 ```
+
+## HTS achievement & positivity by state
 
 ```{r hts_state}
 
@@ -206,17 +221,19 @@ v_yield <- df_yield %>%
         axis.text.y = element_text(color = "white"))
   
 grid.arrange(v_test, v_yield, ncol = 2)
-rm(v_test, v_yield)
+rm(df_hts_state, v_test, v_yield, df_yield)
 ```
+
+## Testing to treatment (proxy linkage)
 
 ```{r htstx}
 df_htstx <- df_mech %>% 
   filter(indicator %in% c("HTS_TST_POS", "TX_NEW"),
          standardizeddisaggregate == "Total Numerator") %>%
   group_by(snu1, indicator) %>% 
-  summarise_at(vars(fy2018apr), sum, nm.rm = TRUE) %>% 
+  summarise_at(vars(fy2018apr), sum, na.rm = TRUE) %>% 
   ungroup() %>% 
-  filter()
+  filter(fy2018apr != 0)
 
 lvls <- df_htstx %>% 
   filter(indicator == "HTS_TST_POS") %>% 
@@ -234,37 +251,75 @@ df_htstx %>%
   labs (x = "", y = "") +
   rw_plot_theme() +
   theme(axis.text.y = element_blank())
-  
+
+rm(lvls)  
 ```
 
-```{r hts_mods_tbl, echo=FALSE}
+## Testing to treatment (proxy linkage) table
+
+```{r htstx table}
+df_htstx %>% 
+  spread(indicator, fy2018apr) %>% 
+  mutate(`Proxy Linkage (%)` = round(TX_NEW / HTS_TST_POS, 2) * 100) %>% 
+  arrange(desc(HTS_TST_POS)) %>% 
+  rename(State = snu1) %>% 
+  kable(format.args = list(big.mark = ",", zero.print = FALSE)) %>% 
+  kable_styling()
+```
 
 
-#df_mech_mod <- 
-df_mech %>% 
-  filter(indicator %in% c("HTS_TST","HTS_TST_NEG", "HTS_TST_POS"),
+```{r}
+df_mod <- df_mech %>% 
+  filter(indicator %in% c("HTS_TST", "HTS_TST_POS"),
          standardizeddisaggregate %in% 
            c("Modality/Age/Sex/Result", "Modality/Age Aggregated/Sex/Result")) %>% 
   group_by(modality, indicator) %>% 
-  summarize_at(vars(starts_with("fy2018q")), sum, na.rm = TRUE) %>% 
+  summarize_at(vars(fy2018apr), sum, na.rm = TRUE) %>% 
   ungroup() %>% 
-  gather(pd, val, -modality, -indicator) %>%
-  mutate(pd = str_remove(pd, "20") %>% toupper()) %>% 
-  spread(indicator, val) %>% 
-  mutate(YIELD = round(HTS_TST_POS / HTS_TST, 3) *100) %>% 
-  filter(!is.nan(YIELD)) %>% 
-  select(-HTS_TST_NEG) %>% 
-  gather(indicator, val, -modality, -pd) %>%
-  mutate(indicator = case_when(indicator == "HTS_TST" ~ "Total",
-                               indicator == "HTS_TST_POS" ~ "Pos.",
-                               TRUE                       ~ "Yield")) %>% 
-  arrange(modality, pd, indicator) %>% 
-  unite(ind, c("pd", "indicator")) %>% 
-  spread(ind, val, fill = 0) %>% 
-  kable(format.args = list(big.mark = ",", zero.print = FALSE),
-        col.names = c("", rep(c("Pos", "Total", "Yield (%)"), 4))) %>% 
-  add_header_above(c(" " = 1, "FY18 Q1" = 3, "Q2" = 3, "Q3" = 3, "Q4" = 3)) %>% 
-  kable_styling()
+  spread(indicator, fy2018apr) %>% 
+  filter(HTS_TST != 0) %>% 
+  mutate(`Positivity (%)` = round(HTS_TST_POS / HTS_TST, 3)*100) %>% 
+  arrange(HTS_TST) %>% 
+  mutate(modality = as_factor(modality)) %>% 
+  gather(indicator, val, -modality)
+
+df_mod %>% 
+  ggplot(aes(modality, val)) +
+  geom_col() +
+  scale_y_continuous(labels = comma) +
+  coord_flip() +
+  facet_wrap(indicator ~ ., scales = "free_x") +
+  labs(title = "Testing by Modality", x = "", y = "volume")
+```
+
+#HTS modalities table
+
+```{r hts_mods_tbl, echo=FALSE}
+
+# df_mech %>% 
+#   filter(indicator %in% c("HTS_TST","HTS_TST_NEG", "HTS_TST_POS"),
+#          standardizeddisaggregate %in% 
+#            c("Modality/Age/Sex/Result", "Modality/Age Aggregated/Sex/Result")) %>% 
+#   group_by(modality, indicator) %>% 
+#   summarize_at(vars(starts_with("fy2018q")), sum, na.rm = TRUE) %>% 
+#   ungroup() %>% 
+#   gather(pd, val, -modality, -indicator) %>%
+#   mutate(pd = str_remove(pd, "20") %>% toupper()) %>% 
+#   spread(indicator, val) %>% 
+#   mutate(YIELD = round(HTS_TST_POS / HTS_TST, 3) *100) %>% 
+#   filter(!is.nan(YIELD)) %>% 
+#   select(-HTS_TST_NEG) %>% 
+#   gather(indicator, val, -modality, -pd) %>%
+#   mutate(indicator = case_when(indicator == "HTS_TST" ~ "Total",
+#                                indicator == "HTS_TST_POS" ~ "Pos.",
+#                                TRUE                       ~ "Yield")) %>% 
+#   arrange(modality, pd, indicator) %>% 
+#   unite(ind, c("pd", "indicator")) %>% 
+#   spread(ind, val, fill = 0) %>% 
+#   kable(format.args = list(big.mark = ",", zero.print = FALSE),
+#         col.names = c("", rep(c("Pos", "Total", "Yield (%)"), 4))) %>% 
+#   add_header_above(c(" " = 1, "FY18 Q1" = 3, "Q2" = 3, "Q3" = 3, "Q4" = 3)) %>% 
+#   kable_styling()
 
 #apr
 df_mech %>% 
@@ -283,6 +338,7 @@ df_mech %>%
   arrange(desc(Total)) %>% 
   kable(format.args = list(big.mark = ",", zero.print = FALSE)) %>% 
   kable_styling()
+
 ```
 
 ```{r hts_mod_sex, echo=FALSE}
@@ -315,9 +371,10 @@ df_hts_sex <- df_mech %>%
   group_by(modality) %>% 
   mutate(mod_total = sum(fy2018apr)) %>% 
   ungroup() %>% 
-  mutate(sex = ifelse(sex == "Unknown Sex", "Unkown", sex))
+  mutate(sex = ifelse(sex == "Unknown Sex", "Unknown", sex))
 
 df_hts_sex %>% 
+  filter(sex != "Unknown") %>% 
   ggplot(aes(reorder(modality, mod_total), fy2018apr)) +
   geom_col() +
   coord_flip() +
@@ -334,7 +391,10 @@ df_hts_age <- df_mech %>%
   group_by(indicator, agesemifine) %>% 
   summarize_at(vars(fy2018apr), sum, na.rm = TRUE) %>% 
   ungroup() %>% 
-  filter(fy2018apr != 0) %>% 
+  spread(indicator, fy2018apr) %>% 
+  mutate(`Positivity (%)` = round(HTS_TST_POS / HTS_TST, 3) * 100) %>% 
+  filter(HTS_TST != 0) %>%
+  gather(indicator, fy2018apr, -agesemifine) %>% 
   dplyr::arrange(desc(agesemifine)) %>%
   mutate(agesemifine = forcats::as_factor(agesemifine))
 
@@ -345,7 +405,17 @@ df_hts_age %>%
   facet_wrap(~ indicator, scales = "free_x") +
   labs(x = "", y = "test volume") +
   scale_y_continuous(label = comma) +
+  rw_plot_theme() 
+
+
+df_hts_age %>% 
+  ggplot(aes(agesemifine, fy2018apr, color = indicator)) +
+  geom_point(size = 6) +
+  coord_flip() +
+  labs(x = "", y = "test volume") +
+  scale_y_continuous(label = comma) +
   rw_plot_theme()  
+
 ```
 
 
