@@ -45,3 +45,8 @@ rsconnect/
 *.rds
 *.xlsx
 *.xls
+
+
+Output/*
+Viz/*
+*.Rmd
