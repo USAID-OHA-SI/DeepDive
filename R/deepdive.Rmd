@@ -23,9 +23,8 @@ library(RearWindow)
 
 ```{r import, echo=FALSE}
 #import,clean up names and add cumulative
-  df_nga <- read_rds("~/ICPI/Data/MER_Structured_Dataset_PSNU_IM_FY17-18_20181115_v1_1_Nigeria.rds") %>% 
-    rename_official() %>% 
-    rw_gen_nn_target()
+  df_mech <- read_rds("C:/Users/achafetz/Documents/GitHub/DeepDive/Data/MSD_PSNU_IM_NGA_filtered_FY18Q4i.rds") %>% 
+    filter(mechanismid == "14505") 
     
 ```
 
@@ -33,13 +32,10 @@ library(RearWindow)
   #add palette
     color <- rw_addpalette()
   #establish thresholds
-    threshold <- rw_addthresholds(df_nga)
+    threshold <- rw_addthresholds(df_mech)
 ```
 
-```{r mech_filter, echo=FALSE}
-#filter to look at just one mechanism
-  df_mech <- df_nga %>% 
-    filter(mechanismid == "14505") 
+```{r filters, echo=FALSE}
 
 mech <- unique(df_mech$mechanismid)
 mechname <- unique(df_mech$implementingmechanismname)
@@ -449,7 +445,7 @@ df_nn <- df_mech %>%
   filter(indicator %in% c("TX_CURR", "TX_NET_NEW"),
          standardizeddisaggregate == "Total Numerator") %>% 
   group_by(indicator) %>% 
-  summarise_at(vars(contains("q")), sum, na.rm = TRUE) %>% 
+  summarise_at(vars(contains("q"), fy2018_targets), sum, na.rm = TRUE) %>% 
   gather(pd, val, -indicator) %>% 
   spread(indicator, val) %>% 
   mutate(tx_curr_gr = ifelse(TX_NET_NEW > 0, TX_CURR - TX_NET_NEW, TX_CURR),
@@ -457,9 +453,14 @@ df_nn <- df_mech %>%
   select(-TX_CURR, -TX_NET_NEW) %>% 
   gather(indicator, val, -pd) %>% 
   mutate(pd = str_remove(pd, "20") %>% toupper(.),
+         pd = str_replace(pd, "_", " "),
          indicator = case_when(indicator == "tx_nn_gr" ~ "TX_NET_NEW",
                                TRUE                    ~ "TX_CURR"),
-         indicator = factor(indicator, levels = c("TX_NET_NEW","TX_CURR")))
+         indicator = factor(indicator, levels = c("TX_NET_NEW","TX_CURR")),
+         pd = factor(pd, levels = c("FY17Q1", "FY17Q2", "FY17Q3", "FY17Q4",
+                                    "FY18Q1", "FY18Q2", "FY18Q3", "FY18Q4",
+                                    "FY18 TARGETS"))) #%>% 
+  #mutate(target = ifelse((pd == "FY18 TARGETS" & indicator == "TX_CURR"), val, NA)) 
   
 df_nn %>% 
   ggplot(aes(pd, fill = indicator)) + 
@@ -470,8 +471,106 @@ df_nn %>%
   labs(x = "", y = "") +
   rw_plot_theme()
   
-  
 ```
 
+## Retention and VL
 
+```{r retention_vl, echo=FALSE}
+
+df_ret <- df_mech %>% 
+  filter(indicator %in% c("TX_CURR", "TX_PVLS_D", "TX_PLVS", "TX_RET_D", "TX_RET"),
+         standardizeddisaggregate %in% c("Total Numerator", "Total Denominator")) %>%
+  group_by(indicator) %>% 
+  summarise_at(vars(fy2018apr), sum, na.rm = TRUE) %>% 
+  ungroup()
+
+df_ret %>% 
+  ggplot(aes(indicator, fy2018apr)) +
+  geom_col() +
+  geom_text(aes(label = comma(fy2018apr)), vjust = -.5) +
+  labs(x = "", y = "") +
+  rw_plot_theme() +
+  theme(axis.text.y = element_blank())
+```
+
+## LV by Age & Sex
+```{r lv_age}
+df_lv_age <- df_mech %>% 
+  filter(indicator %in% c("TX_CURR", "TX_PVLS", "TX_PVLS_D"),
+         numeratordenom == "N",
+         standardizeddisaggregate %in% c("Age/Sex/HIVStatus", "Age Aggregated/Sex/HIVStatus",
+                                         "Age/Sex/Indication/HIVStatus", "Age Aggregated/Sex/Indication/HIVStatus")) %>%
+  mutate(sex = ifelse(agecoarse == "<15", "Children", sex)) %>%  
+  group_by(indicator, agecoarse, sex) %>% 
+  summarise_at(vars(fy2018apr), sum, na.rm = TRUE) %>% 
+  ungroup() %>% 
+  filter(!is.na(agecoarse), fy2018apr!=0) %>%
+  unite(agesex, c("sex", "agecoarse"), sep = " ") %>% 
+  mutate(indicator = factor(indicator, levels = c("TX_PVLS_D", "TX_PVLS", "TX_CURR")))
+
+df_lv_age %>% 
+  ggplot(aes(indicator, fy2018apr)) +
+  geom_col() +
+  coord_flip() +
+  scale_y_continuous(label = comma) +
+  facet_wrap(agesex ~ .) +
+  labs(x = "", y = "") +
+  rw_plot_theme()
+  
+rm(df_lv_age)
+```
+
+#PMTCT cascade
+```{r pmtct, echo=FALSE}
+
+
+pmtct_ind <- 
+  tibble::tribble(
+                         ~indicator,      ~standardizeddisaggregate,       ~otherdisaggregate,    ~ageasentered, ~resultstatus,
+                        "PMTCT_EID",                "Age/HIVStatus",                       NA,    "<=02 Months",    "Positive",
+                        "PMTCT_EID",                "Age/HIVStatus",                       NA, "02 - 12 Months",    "Positive",
+                        "PMTCT_EID",              "Total Numerator",                       NA,               NA,            NA,
+                       "PMTCT_STAT",            "Total Denominator",                       NA,               NA,            NA,
+                       "PMTCT_STAT",              "Total Numerator",                       NA,               NA,            NA,
+                           "TX_NEW",            "Age/Sex/HIVStatus",                       NA,            "<01",    "Positive",
+                        "PMTCT_ART", "NewExistingArt/Sex/HIVStatus", "Life-long ART, Already",               NA,    "Positive",
+                        "PMTCT_ART", "NewExistingArt/Sex/HIVStatus",     "Life-long ART, New",               NA,    "Positive",
+                        "PMTCT_ART",              "Total Numerator",                       NA,               NA,            NA,
+                   "PMTCT_STAT_POS",              "Total Numerator",                       NA,               NA,            NA,
+                    "PMTCT_HEI_POS",                "Age/HIVStatus",                       NA,    "<=02 Months",    "Positive",
+                    "PMTCT_HEI_POS",                "Age/HIVStatus",                       NA, "02 - 12 Months",    "Positive",
+                    "PMTCT_HEI_POS",              "Total Numerator",                       NA,               NA,            NA,
+  "PMTCT_EID_Less_Equal_Two_Months",              "Total Numerator",                       NA,               NA,            NA
+  )
+
+df_pmtct <- inner_join(df_mech, pmtct_ind)
+
+pmtct_v1 <- df_pmtct %>% 
+  filter(indicator %in% c("PMTCT_STAT", "PMTCT_STAT_POS")) %>% 
+  group_by(indicator, standardizeddisaggregate) %>% 
+  summarize_at(vars(fy2018apr, fy2018_targets), sum, na.rm = TRUE) %>% 
+  ungroup() %>% 
+  mutate(level = case_when(indicator == "PMTCT_STAT_POS" ~ "lvl_2",
+                           TRUE                          ~ "lvl_1")) %>% 
+  gather(pd, val, fy2018apr, fy2018_targets) %>% 
+  filter(!(indicator == "PMTCT_STAT_POS" & pd == "fy2018_targets")) %>% 
+  #spread(level, val) %>% 
+  mutate(ind = case_when(standardizeddisaggregate == "Total Denominator" ~ "Number of new ANC1 clients in reporting period",
+                         TRUE ~ "Pregnant women with known HIV status at ANC1")) %>% 
+  group_by(ind, pd, level) %>% 
+  summarize_at(vars(val), sum, na.rm = TRUE) %>% 
+  ungroup() %>% 
+  spread(level, val) %>% 
+  spread(pd, lvl_1)
+  
+pmtct_v1 %>% 
+  ggplot(aes(ind, fy2018apr)) + 
+  geom_col(na.rm = TRUE) +
+  #geom_col(aes(y = lvl_2)) +
+  geom_errorbar(aes(ymax=fy2018_targets, ymin=fy2018_targets), width=0.75, size =1, color= color["amazon"]) +
+  labs(x = "", y = "") +
+  scale_y_continuous(label = comma) +
+  rw_plot_theme()
+  
+ ```
 
