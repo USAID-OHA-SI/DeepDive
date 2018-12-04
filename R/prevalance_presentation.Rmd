@@ -2,7 +2,7 @@
 title: "Prevalence in Nigeria"
 author: "Aaron Chafetz"
 date: "December 4, 2018"
-output: ioslides_presentation
+output: slidy_presentation
 ---
 
 ```{r setup, include=FALSE}
@@ -27,36 +27,39 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
 
 ```
 
-## NAIIS
+## Where is NAIIS?
 
 - Preliminary results for NAIIS survey was made available in 6 states.
-   - Bauchi, Cross River, warning = FALSE,  Enugu, Kano, Lagos, Nasarawa
+   - Bauchi, Cross River, Enugu, Kano, Lagos, Nasarawa
 - Full results will be released in March
 
-## Discussion Points
+
+
+**NOTE: NAIIS data is embargoed and unvalidated at this point**
+
+## Discussion Points to consider
 
 - What can we expect post NAIIS based on other country experiences? 
 - How to interpret the current Nigeria NAIIS results? What do they mean and what don't they mean? 
 - What should be USAID’s focus? Geographic, priority populations, population characteristics, service delivery models, targets, budgets?
 
-## Trends in recent prevance surveys
+## The initial results show a decline in 5 of the six states compared with recent Spectrum prevalence.
 
-- The initial results show a decline in 5 of the six states compared with recent Spectrum prevalence. 
-
-```{r, warning = FALSE, echo=FALSE}
+```{r prev, warning = FALSE, echo=FALSE}
   prev %>% 
     ggplot(aes(survey, prevalence, group = state, color = state)) +
     geom_path() +
     geom_point() +
     geom_text(aes(label = lab_state), hjust = 1.1, vjust = .3, na.rm = TRUE) +
     scale_y_continuous(label = percent) +
-    labs(title = "Prevalence across surveys", subtitle = "Nigeria", x = "") +
+    labs(x = "") +
     theme(legend.position = "none")
 ```
 
-## Change in Prevalance
+## Here is where Nigeria was with PLHIV (Data Pack COP 18)
 
-```{r, warning = FALSE, echo=FALSE}
+```{r plhiv, warning = FALSE, echo=FALSE}
+
   viz_plhiv <- burden %>% 
     select(state, plhiv_old, plhiv_est) %>%
     arrange(plhiv_old) %>% 
@@ -65,7 +68,33 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
     mutate(lab = case_when(state == "Kano" & pd == "plhiv_old" ~ "Old",
                              state == "Kano" & pd == "plhiv_est" ~ "NAIIS",
                              TRUE                                 ~ as.character(NA)))
+
+  viz_plhiv_i <- viz_plhiv %>%
+    filter(pd == "plhiv_old")
   
+  viz_plhiv_i %>% 
+    ggplot(aes(state, val)) +
+    geom_point(color = ifelse(viz_plhiv_i$pd == "plhiv_old", "#808080", "#000000"),
+               size = 5) +
+    geom_text(aes(label = lab), 
+              hjust = .5, vjust = -1, 
+              check_overlap = TRUE,
+              color = ifelse(viz_plhiv_i$pd == "plhiv_old", "#808080", "#000000"),
+              na.rm = TRUE) +
+    scale_y_continuous(label = comma) +
+    coord_flip() +
+    expand_limits(y = 0) +
+    labs(y = "PLHIV estimate",
+         x = "")
+  
+  rm(viz_plhiv_i)
+
+```
+
+## ... and now NAIIS projects lower PLHIV in five of the six initial states.
+
+```{r plhiv_updated, warning = FALSE, echo=FALSE}
+
   viz_plhiv %>% 
     ggplot(aes(state, val)) +
     geom_path(color = "#808080") +
@@ -79,19 +108,15 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
     scale_y_continuous(label = comma) +
     coord_flip() +
     expand_limits(y = 0) +
-    labs(title = "Change in PLHIV", 
-         subtitle = "PLHIV from Data Pack compared with NAIIS estimate",
-         y = "PLHIV estimate",
+    labs(y = "PLHIV estimate",
          x = "")
   
-  rm(viz_plhiv)
+  rm(viz_plhiv_i)
 ```
 
-## PLHIV
+## Looking at those states in comparison to other states' PLHIV
 
-- Previous PLHIV (from COP18 Data Pack)
-
-```{r, warning = FALSE, echo=FALSE}
+```{r plhiv_across, warning = FALSE, echo=FALSE}
 viz_datapack <- datapack %>% 
   arrange(plhiv_old) %>% 
   mutate(state = as_factor(state),
@@ -106,11 +131,9 @@ viz_datapack %>%
 
 ```
 
-## PLHIV
+## ...and then the updated PLHIV estimate with NAIIS
 
-- Updated PLHIV based on NAIIS
-
-```{r, warning = FALSE, echo=FALSE}
+```{r plhiv_across_update, warning = FALSE, echo=FALSE}
 
 new_plhiv <- burden %>% 
   mutate(plhiv = prevalence_naiis * pop_num) %>% 
@@ -135,10 +158,10 @@ rm(viz_datapack, viz_datapack2, new_plhiv)
 
 ```
 
-## Unmet Need
+## Given this update, Nigeria still has a large unmet need in these districts
 
 
-```{r, warning = FALSE, echo=FALSE}
+```{r burden, warning = FALSE, echo=FALSE}
 #unmet need
   viz_burden <- burden %>% 
     select(state, TX_CURR, unmet_burden) %>% 
@@ -154,28 +177,28 @@ rm(viz_datapack, viz_datapack2, new_plhiv)
     geom_col() +
     scale_y_continuous(label = comma) +
     coord_flip() +
-    labs(title = "Unmet Need", subtitle = "in states with NAIIS data", x = "", y = "PLHIV")
+    labs(x = "", y = "PLHIV")
   
 ```
 
-## Unmet Need
+## ... and shows Nigeria still has a ways to go before reaching the second 90.
 
-```{r, warning = FALSE, echo=FALSE}
+```{r burden_share, warning = FALSE, echo=FALSE}
 viz_burden %>% 
     ggplot(aes(state, val, fill = type)) +
     geom_bar(position = "fill",stat = "identity") +
-    geom_hline(yintercept = .81, color = "#808080") +
+    geom_hline(yintercept = .81, color = "#808080", size = 2) +
     scale_y_continuous(label = percent) +
     coord_flip() +
-    labs(title = "Unmet Need", subtitle = "in states with NAIIS data", x = "", y = "Share of PLHIV")
+    labs(x = "", y = "Share of PLHIV")
 
   
   rm(viz_burden)
 ```
 
-## Comparing Burden to FY19 Targets
+## It doesn't appear that our targets heavily align with this unmet need.
 
-```{r, warning = FALSE, echo=FALSE}
+```{r burden_mer, warning = FALSE, echo=FALSE}
   viz_ind <- burden %>% 
     arrange(unmet_burden) %>% 
     mutate(state = as_factor(state)) %>% 
@@ -189,14 +212,14 @@ viz_burden %>%
     coord_flip() +
     facet_grid(. ~ type, scales = "free_x") +
     scale_y_continuous(label = comma) +
-    labs(title = "COP18 targets against unmet burden",x = "", y = "")
+    labs(x = "", y = "")
   
   rm(viz_ind)
 ```
 
-## NAIIS Estimated Cascade
+## A quick look at the estimated cascade shows low 1st 90, but sucessful 2nd and 3rd 90.
 
-```{r, warning = FALSE, echo=FALSE}
+```{r cascade, warning = FALSE, echo=FALSE}
 
   datapack_sex <- datapack %>% 
     select(-plhiv_old) %>% 
@@ -237,9 +260,9 @@ viz_burden %>%
   rm(datapack_sex, viz_cas)
 ```
 
-## Treatment Comparison
+## Comparing program results to NAIIS, Enugu and Cross River are heavily under reporting in MER.
 
-```{r, warning = FALSE, echo=FALSE}
+```{r tx_curr, warning = FALSE, echo=FALSE}
   
   tx_curr_est <- cascade_est %>%
     mutate(PLHIV = pop * `Prev 15+`,
@@ -271,8 +294,20 @@ viz_burden %>%
   rm(tx_curr_est, viz_tx_curr_comp, cascade_est)
 ```
 
-## Discussion Points
+## recap the Discussion Points
 
 - What can we expect post NAIIS based on other country experiences? 
 - How to interpret the current Nigeria NAIIS results? What do they mean and what don't they mean? 
 - What should be USAID’s focus? Geographic, priority populations, population characteristics, service delivery models, targets, budgets?
+
+## Data Sources
+
+**NOTE: NAIIS data is embargoed and unvalidated at this point**
+
+- NAIIS data scraped from: CDC. (2018 Oct 18). 2018 Nigeria AIDS Indicator and Impact Suvery (NAIIS):  Preliminary Data, Web 1 States [presentation]
+- Spectrum & NAIIS Prevalence comparions extracted from: Delahatu(2018 Oct 19) Comparison of State HIV Prevalence Oct 19 2018_Sebastian.xlsx. CDC.
+- MER data extracted from: PEPFAR. (2018, Nov 15). MER Structured Dataset FY18Q4 initial. www.pepfar-panorama.org
+- Population and PLHIV estimated from: Nigeria PEPFAR Team. (2018, Mar 16). NigeriaCOP18DataPackv2018.02.13 - Version 10 Mar 16 2018_Final
+
+
+[Link to Google Drive with data sets](https://bit.ly/2ETfVOm)
