@@ -1,0 +1,278 @@
+---
+title: "Prevalence in Nigeria"
+author: "Aaron Chafetz"
+date: "December 4, 2018"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#dependencies
+library(tidyverse)
+library(readxl)
+library(scales)
+```
+
+```{r import, echo=FALSE}
+
+#import
+folderpath <- "C:/Users/achafetz/Documents/GitHub/DeepDive/Output"
+prev <- read_rds(file.path(folderpath, "prev_surveys.rds"))
+burden <- read_rds(file.path(folderpath, "nga_buden.rds"))
+datapack <- read_rds(file.path(folderpath, "datapack.rds"))
+cascade <- read_rds(file.path(folderpath, "cascade.rds"))
+tx_curr <- read_rds(file.path(folderpath, "tx_curr.rds"))
+naiis <- read_rds(file.path(folderpath, "naiis.rds"))
+
+```
+
+## NAIIS
+
+- Preliminary results for NAIIS survey was made available in 6 states.
+   - Bauchi, Cross River, warning = FALSE,  Enugu, Kano, Lagos, Nasarawa
+- Full results will be released in March
+
+## Discussion Points
+
+- What can we expect post NAIIS based on other country experiences? 
+- How to interpret the current Nigeria NAIIS results? What do they mean and what don't they mean? 
+- What should be USAID’s focus? Geographic, priority populations, population characteristics, service delivery models, targets, budgets?
+
+## Trends in recent prevance surveys
+
+- The initial results show a decline in 5 of the six states compared with recent Spectrum prevalence. 
+
+```{r, warning = FALSE, echo=FALSE}
+  prev %>% 
+    ggplot(aes(survey, prevalence, group = state, color = state)) +
+    geom_path() +
+    geom_point() +
+    geom_text(aes(label = lab_state), hjust = 1.1, vjust = .3, na.rm = TRUE) +
+    scale_y_continuous(label = percent) +
+    labs(title = "Prevalence across surveys", subtitle = "Nigeria", x = "") +
+    theme(legend.position = "none")
+```
+
+## Change in Prevalance
+
+```{r, warning = FALSE, echo=FALSE}
+  viz_plhiv <- burden %>% 
+    select(state, plhiv_old, plhiv_est) %>%
+    arrange(plhiv_old) %>% 
+    mutate(state = as_factor(state)) %>% 
+    gather(pd, val, -state) %>% 
+    mutate(lab = case_when(state == "Kano" & pd == "plhiv_old" ~ "Old",
+                             state == "Kano" & pd == "plhiv_est" ~ "NAIIS",
+                             TRUE                                 ~ as.character(NA)))
+  
+  viz_plhiv %>% 
+    ggplot(aes(state, val)) +
+    geom_path(color = "#808080") +
+    geom_point(color = ifelse(viz_plhiv$pd == "plhiv_old", "#808080", "#000000"),
+               size = 5) +
+    geom_text(aes(label = lab), 
+              hjust = .5, vjust = -1, 
+              check_overlap = TRUE,
+              color = ifelse(viz_plhiv$pd == "plhiv_old", "#808080", "#000000"),
+              na.rm = TRUE) +
+    scale_y_continuous(label = comma) +
+    coord_flip() +
+    expand_limits(y = 0) +
+    labs(title = "Change in PLHIV", 
+         subtitle = "PLHIV from Data Pack compared with NAIIS estimate",
+         y = "PLHIV estimate",
+         x = "")
+  
+  rm(viz_plhiv)
+```
+
+## PLHIV
+
+- Previous PLHIV (from COP18 Data Pack)
+
+```{r, warning = FALSE, echo=FALSE}
+viz_datapack <- datapack %>% 
+  arrange(plhiv_old) %>% 
+  mutate(state = as_factor(state),
+         new_col = ifelse(state %in% unique(prev$state), "orange", "gray"))
+
+viz_datapack %>% 
+  ggplot(aes(state, plhiv_old, fill = new_col)) +
+  geom_col(fill = viz_datapack$new_col) +
+  scale_y_continuous(labels = comma) +
+  labs(x = "", y = "PLHIV") +
+  coord_flip()
+
+```
+
+## PLHIV
+
+- Updated PLHIV based on NAIIS
+
+```{r, warning = FALSE, echo=FALSE}
+
+new_plhiv <- burden %>% 
+  mutate(plhiv = prevalence_naiis * pop_num) %>% 
+  select(state, plhiv)
+
+viz_datapack2 <- viz_datapack %>% 
+  left_join(new_plhiv, by = "state") %>% 
+  arrange(plhiv_old) %>% 
+  mutate(state = as_factor(state),
+         plhiv_merge = ifelse(!is.na(plhiv), plhiv, plhiv_old),
+         placeholder = ifelse(!is.na(plhiv), plhiv_old, as.double(NA))) 
+
+viz_datapack2 %>% 
+  ggplot(aes(state, plhiv_merge, fill = new_col)) +
+  geom_col(fill = viz_datapack2$new_col) +
+  geom_errorbar(aes(ymax = placeholder, warning = FALSE, ymin = placeholder), width = .75, size = 1, color = "black", na.rm = TRUE) +
+  scale_y_continuous(labels = comma) +
+  labs(x = "", y = "PLHIV") +
+  coord_flip()
+
+rm(viz_datapack, viz_datapack2, new_plhiv)
+
+```
+
+## Unmet Need
+
+
+```{r, warning = FALSE, echo=FALSE}
+#unmet need
+  viz_burden <- burden %>% 
+    select(state, TX_CURR, unmet_burden) %>% 
+    arrange(unmet_burden) %>% 
+    mutate(state = as_factor(state)) %>% 
+    gather(type, val, -state) %>% 
+    arrange(state, desc(type)) %>% 
+    mutate(type = ifelse(type == "unmet_burden", "Unmet Need", type),
+           type = as_factor(type))
+
+  viz_burden %>% 
+    ggplot(aes(state, val, fill = type)) +
+    geom_col() +
+    scale_y_continuous(label = comma) +
+    coord_flip() +
+    labs(title = "Unmet Need", subtitle = "in states with NAIIS data", x = "", y = "PLHIV")
+  
+```
+
+## Unmet Need
+
+```{r, warning = FALSE, echo=FALSE}
+viz_burden %>% 
+    ggplot(aes(state, val, fill = type)) +
+    geom_bar(position = "fill",stat = "identity") +
+    geom_hline(yintercept = .81, color = "#808080") +
+    scale_y_continuous(label = percent) +
+    coord_flip() +
+    labs(title = "Unmet Need", subtitle = "in states with NAIIS data", x = "", y = "Share of PLHIV")
+
+  
+  rm(viz_burden)
+```
+
+## Comparing Burden to FY19 Targets
+
+```{r, warning = FALSE, echo=FALSE}
+  viz_ind <- burden %>% 
+    arrange(unmet_burden) %>% 
+    mutate(state = as_factor(state)) %>% 
+    select(state, `Unmet Burden` = unmet_burden, TX_NEW, HTS_TST) %>% 
+    gather(type, val, -state) %>% 
+    mutate(type = factor(type, c("Unmet Burden", "HTS_TST", "TX_NEW")))
+
+  viz_ind %>% 
+    ggplot(aes(state, val)) +
+    geom_col(fill = ifelse(viz_ind$type == "Unmet Burden", "gray", "#808080")) +
+    coord_flip() +
+    facet_grid(. ~ type, scales = "free_x") +
+    scale_y_continuous(label = comma) +
+    labs(title = "COP18 targets against unmet burden",x = "", y = "")
+  
+  rm(viz_ind)
+```
+
+## NAIIS Estimated Cascade
+
+```{r, warning = FALSE, echo=FALSE}
+
+  datapack_sex <- datapack %>% 
+    select(-plhiv_old) %>% 
+    gather(sex, pop, -state) %>% 
+    mutate(sex = case_when(sex == "pop_num_f" ~ "female",
+                           sex == "pop_num_m" ~ "male",
+                           TRUE               ~ "total"))
+  
+  cascade_est <- left_join(naiis, datapack_sex, by = c("state", "sex"))
+  
+  # viz_cas <- cascade_est %>%
+  #   mutate(PLHIV = pop * `Prev 15+`,
+  #          Diagnosed = PLHIV * Diagnosed,
+  #          `On Treatment` = Diagnosed * `On Treatment`,
+  #          `Virally Supressed` = `On Treatment` * `Virally Supressed`) %>% 
+  #   select(-`Prev 15+`, -pop, -PLHIV) %>% 
+  #   gather(type, val, -state, -sex)
+  # 
+  
+  viz_cas <- cascade_est %>%
+    mutate(`On Treatment` = Diagnosed * `On Treatment`,
+           `Virally Supressed` = `On Treatment` * `Virally Supressed`) %>% 
+    select(-`Prev 15+`, -pop) %>% 
+    gather(type, val, -state, -sex) %>% 
+    mutate(type = ifelse(type == "On Treatment", "On Tx", type))
+  
+  viz_cas %>% 
+    ggplot(aes(type, val)) +
+    geom_col() +
+    geom_text(aes(label = percent(val, accuracy = 1)), vjust = -1) +
+    scale_y_continuous(label = percent) +
+    expand_limits(y = .75) +
+    facet_grid(sex ~ state) +
+    labs(x = "", y = "") +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank())
+  
+  rm(datapack_sex, viz_cas)
+```
+
+## Treatment Comparison
+
+```{r, warning = FALSE, echo=FALSE}
+  
+  tx_curr_est <- cascade_est %>%
+    mutate(PLHIV = pop * `Prev 15+`,
+           Diagnosed = PLHIV * Diagnosed,
+           `On Treatment` = Diagnosed * `On Treatment`) %>% 
+    select(state:Diagnosed)
+  
+  viz_tx_curr_comp <- left_join(tx_curr_est, tx_curr, by = c("state", "sex")) %>% 
+    gather(type, val, -state, -sex) %>% 
+    arrange(state, sex, type)
+  
+  viz_tx_curr_comp %>%
+    ggplot(aes(state, val)) +
+    geom_path(color = "#808080") +
+    geom_point(color = ifelse(viz_tx_curr_comp$type == "TX_CURR", "#808080", "#000000"),
+               size = 5) +
+    # geom_text(aes(label = lab), 
+    #           hjust = .5, vjust = -1, 
+    #           check_overlap = TRUE,
+    #           color = ifelse(viz_tx_curr_comp$type == "TX_CURR", "#808080", "#000000"),
+    #           na.rm = TRUE) +
+    scale_y_continuous(label = comma) +
+    coord_flip() +
+    expand_limits(y = 0) +
+    labs(x = "", y  = "") +
+    facet_wrap(. ~ sex) +
+    theme(legend.position = "top") 
+  
+  rm(tx_curr_est, viz_tx_curr_comp, cascade_est)
+```
+
+## Discussion Points
+
+- What can we expect post NAIIS based on other country experiences? 
+- How to interpret the current Nigeria NAIIS results? What do they mean and what don't they mean? 
+- What should be USAID’s focus? Geographic, priority populations, population characteristics, service delivery models, targets, budgets?
