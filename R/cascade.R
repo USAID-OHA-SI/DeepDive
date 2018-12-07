@@ -76,7 +76,6 @@
       select(` ` = fundingagency, `Age Group` = agecoarse, HTS_TST, HTS_TST_POS, Positivity, TX_NEW, 
              Linkage, TX_CURR, TX_RET, TX_RET_D, Retention, TX_PVLS, TX_PVLS_D, VL) %>% 
       kable(format.args = list(big.mark = ",", zero.print = FALSE), align = "r", caption = "Nigeria FY18 Cascade") %>% 
-      #add_header_above(c(" " = 1, "FY18 Q1" = 3, "Q2" = 3, "Q3" = 3, "Q4" = 3)) %>% 
       kable_styling()
     
   #USAID cascade
@@ -89,5 +88,4 @@
       select(` ` = fundingagency, `Age Group` = agecoarse, HTS_TST, HTS_TST_POS, Positivity, TX_NEW, 
              Linkage, TX_CURR, TX_RET, TX_RET_D, Retention, TX_PVLS, TX_PVLS_D, VL) %>% 
       kable(format.args = list(big.mark = ",", zero.print = FALSE), align = "r", caption = "USAID/Nigeria FY18 Cascade") %>% 
-      #add_header_above(c(" " = 1, "FY18 Q1" = 3, "Q2" = 3, "Q3" = 3, "Q4" = 3)) %>% 
       kable_styling()
