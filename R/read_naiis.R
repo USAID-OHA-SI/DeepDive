@@ -93,7 +93,7 @@ library(tidyverse)
           .f = ~ read_naiis(.x))
 
 #export combined table as csv
-  write_csv(df_naiis, "NAIIS_raw_all.csv", na = "")
+  write_csv(df_naiis, "Data/NAIIS_raw_all.csv", na = "")
 
 
 
