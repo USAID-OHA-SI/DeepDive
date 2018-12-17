@@ -31,10 +31,9 @@ library(tidyverse)
     #remove special characters and spaces
     naiis_tbl <- naiis_tbl %>% 
       mutate_all(str_replace_all, "0\\(", "0 \\(") %>%
-      mutate_all(str_replace_all, "  ", " ") %>% 
+      mutate_all(str_replace_all, "  ", " ") %>% #remove double spaces
       mutate_all(str_replace_all, ",([[:alnum:]])", ", \\1") %>% #add space if non exists after comma
       mutate_all(str_replace_all, "\\( ([[:alnum:]])", "\\(\\1") %>% #remove space between ( and num
-      mutate_all(str_replace_all, "\\(  ([[:alnum:]])", "\\(\\1") %>% #remove space between ( and num
       mutate_all(str_replace_all, "([[:alnum:]])\\(", "\\1 \\(") %>% #add space if non exists after num and (
       mutate_all(str_replace_all, "([[:alnum:]]) \\)", "\\1\\)") %>% #remove space between num and )
       mutate_all(str_remove_all, "†|‡|§|  ,| ,|,|%|\\(|\\)") %>% 
