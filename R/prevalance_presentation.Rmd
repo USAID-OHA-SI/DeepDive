@@ -53,34 +53,50 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
 - How to interpret the current Nigeria NAIIS results? What do they mean and what don't they mean? 
 - What should be USAID’s focus? Geographic, priority populations, population characteristics, service delivery models, targets, budgets?
 
-## The initial results show a decline in 5 of the six states compared with recent Spectrum prevalence.
+## The initial results show a decline in 23 of the 27 states compared with recent Spectrum prevalence.
 
 ```{r prev}
 
   viz_prev <- prev %>% 
-    mutate(col = case_when(state == "Enugu" ~ comp_gray,
-                           TRUE             ~ main_blue))
+    select(-lab_state) %>% 
+    spread(survey, prevalence) %>% 
+    mutate(change = Spectrum2018 - NAIIS2018) %>% 
+    arrange(desc(change)) %>% 
+    mutate(state = as_factor(state)) 
+  
+  grwth_states <- viz_prev %>%
+    mutate(state = as.character(state)) %>% 
+    filter(change < 0) %>% 
+    pull(state)
+  
+  viz_prev <- viz_prev %>%
+    select(-change) %>% 
+    gather(survey, prevalence, -state) %>% 
+    mutate(col = case_when(state %in% grwth_states ~ comp_gray,
+                           TRUE                    ~ main_blue),
+           survey = str_replace(survey, "pectrum20|AIIS20", "'"),
+           survey = factor(survey, levels = c("S'16", "S'18", "N'18")))
 
   viz_prev %>% 
-    ggplot(aes(survey, prevalence, group = state)) +
-    geom_path(size = 2, color = viz_prev$col) +
-    geom_point(size = 6, pch=21, color = "white", fill = viz_prev$col, stroke = 2) +
-    geom_text(aes(label = lab_state),
-              hjust = 1.2, vjust = .3,
-              size = 6,
-              color = viz_prev$col,
-              na.rm = TRUE) +
-    scale_y_continuous(labels=function(x) paste0(x *100,"%")) +
-    labs(x = "") +
-    theme_bw() +
-    theme(legend.position = "none",
-          text = element_text(size = 18),
-          axis.ticks = element_blank(),
-          axis.title = element_text(color = main_gray),
-          panel.border = element_blank(),
-          axis.line = element_line(color = main_gray))
+      ggplot(aes(survey, prevalence, group = state)) +
+      geom_path(size = 2, color = viz_prev$col) +
+      geom_point(size = 6, pch=21, color = "white", fill = viz_prev$col, stroke = 2) +
+      scale_y_continuous(#labels=function(x) paste0(x *100,"%"), 
+                         breaks = seq(0, .10, .05)) +
+      labs(x = "", caption = "S = Spectrum, N = NAIIS") +
+      facet_wrap(. ~ state) +
+      expand_limits(y = .1) +
+      theme_bw() +
+      theme(legend.position = "none",
+            text = element_text(size = 18),
+            axis.ticks = element_blank(),
+            axis.title = element_text(color = main_gray),
+            panel.border = element_blank(),
+            axis.line =  element_blank(),
+            strip.background = element_blank(),
+            plot.caption = element_text(color = main_gray)) 
   
-  rm(viz_prev)
+  rm(viz_prev, grwth_states)
 ```
 
 ## Here is where Nigeria was with PLHIV (Data Pack COP 18)
@@ -92,9 +108,9 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
     arrange(plhiv_old) %>% 
     mutate(state = as_factor(state)) %>% 
     gather(pd, val, -state) %>% 
-    mutate(lab = case_when(state == "Kano" & pd == "plhiv_old" ~ "Old",
-                             state == "Kano" & pd == "plhiv_est" ~ "NAIIS",
-                             TRUE                                 ~ as.character(NA)))
+    mutate(lab = case_when(state == "Anambra" & pd == "plhiv_old" ~ "Old",
+                           state == "Anambra" & pd == "plhiv_est" ~ "NAIIS",
+                          TRUE                                 ~ as.character(NA)))
 
   viz_plhiv_i <- viz_plhiv %>%
     filter(pd == "plhiv_old")
@@ -109,7 +125,7 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
               size = 5,
               color = ifelse(viz_plhiv_i$pd == "plhiv_old", comp_gray, main_blue),
               na.rm = TRUE) +
-    scale_y_continuous(label = comma) +
+    scale_y_continuous(limits = c(0, 300000), label = comma) +
     coord_flip() +
     expand_limits(y = 0) +
     labs(y = "PLHIV estimate", x = "") +
@@ -125,7 +141,7 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
 
 ```
 
-## ... and now NAIIS projects lower PLHIV in five of the six initial states.
+## ... and now NAIIS projects lower PLHIV in 19 of the 27 initial states.
 
 ```{r plhiv_updated}
 
@@ -141,7 +157,7 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
               size = 5,
               color = ifelse(viz_plhiv$pd == "plhiv_old", comp_gray, main_blue),
               na.rm = TRUE) +
-    scale_y_continuous(label = comma) +
+    scale_y_continuous(limits = c(0, 300000), label = comma) +
     coord_flip() +
     expand_limits(y = 0) +
     labs(y = "PLHIV estimate", x = "") +
@@ -184,14 +200,15 @@ viz_datapack %>%
                 width = .75, size = 1, 
                 color = main_blue, 
                 na.rm = TRUE) +
-  scale_y_continuous(labels = comma) +
-  labs(x = "", y = "PLHIV") +
+  scale_y_continuous(limits = c(0, 300000), labels = comma) +
+  labs(x = "", y = "PLHIV", caption = "Gray bars denote states not included in NAIIS") +
   coord_flip() +
   theme_bw() +
   theme(text = element_text(size = 18),
         axis.title = element_text(color = main_gray),
         axis.ticks = element_blank(),
-        panel.border = element_blank())
+        panel.border = element_blank(),
+        plot.caption = element_text(color = main_gray))
 
 ```
 
@@ -199,16 +216,20 @@ viz_datapack %>%
 
 ```{r plhiv_across_update}
 
+  grwth_states <- viz_prev %>%
+    mutate(state = as.character(state)) %>% 
+    filter(change < 0) %>% 
+    pull(state)
 
 viz_datapack %>% 
   ggplot(aes(state, plhiv_merge, fill = new_col)) +
   geom_col(fill = viz_datapack$new_col) +
   geom_errorbar(aes(ymax = placeholder, ymin = placeholder), 
                 width = .75, size = 1, 
-                color = ifelse(viz_datapack$state == "Enugu","white",main_blue), 
+                color = ifelse(viz_datapack$placeholder < viz_datapack$plhiv_merge,"white",main_blue), 
                 na.rm = TRUE) +
-  scale_y_continuous(labels = comma) +
-  labs(x = "", y = "PLHIV") +
+  scale_y_continuous(limits = c(0, 300000), labels = comma) +
+  labs(x = "", y = "PLHIV", caption = "Gray bars denote states not included in NAIIS") +
   coord_flip() +
   theme_bw() +
   theme(text = element_text(size = 18),
@@ -228,6 +249,7 @@ rm(viz_datapack, new_plhiv)
   viz_burden <- burden %>% 
     select(state, TX_CURR, unmet_burden) %>% 
     arrange(unmet_burden) %>% 
+    filter(!is.na(TX_CURR)) %>% 
     mutate(state = as_factor(state)) %>% 
     gather(type, val, -state) %>% 
     arrange(state, type) %>% 

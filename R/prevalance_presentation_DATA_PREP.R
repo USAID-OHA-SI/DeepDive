@@ -8,7 +8,7 @@ library(scales)
 # MSD ---------------------------------------------------------------------
 
 #import
-  mer_all <- read_rds("~/ICPI/Data/MER_Structured_Dataset_PSNU_IM_FY17-18_20181115_v1_1.rds") %>% 
+  mer_all <- read_rds("~/ICPI/Data/MER_Structured_Dataset_PSNU_IM_FY17-18_20181221_v2_1.txt") %>% 
     filter(operatingunit == "Nigeria")
 
 #filter & aggregate to state level (level of prevalence)
@@ -68,7 +68,8 @@ library(scales)
            NAIIS2018 = `NAIIS\r\n(15-64)\r\n2018`) %>% 
     select(state, Spectrum2016, Spectrum2018, NAIIS2018) %>% 
     filter(!is.na(NAIIS2018)) %>% 
-    mutate(Spectrum2018 = Spectrum2018/100) 
+    mutate(Spectrum2018 = Spectrum2018/100,
+           state = ifelse(state == "FCT Abuja", "FCT", state)) 
 
 #reshape & arrange for graphing
   prev <- prev %>% 
@@ -113,9 +114,12 @@ library(scales)
 
 # NAIIS -------------------------------------------------------------------
   
-  naiis <- read_csv("Data/NAIIS_raw.csv")
+  naiis <- read_csv("Data/NAIIS_raw_all.csv")
   
   naiis <- naiis %>% 
+    select(-contains("ci"), -n) %>% 
+    filter(group != "Viral suppression",
+           !type %in% c("15-24 years", "15-49 years")) %>% 
     mutate(type = case_when(type == "0-14 years"  ~ "Prev <15",
                             type == "15-64 years" ~ "Prev 15+",
                             TRUE                  ~ type)) %>% 
