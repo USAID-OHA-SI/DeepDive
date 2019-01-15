@@ -122,7 +122,8 @@ library(scales)
            !type %in% c("15-24 years", "15-49 years")) %>% 
     mutate(type = case_when(type == "0-14 years"  ~ "Prev <15",
                             type == "15-64 years" ~ "Prev 15+",
-                            TRUE                  ~ type)) %>% 
+                            TRUE                  ~ type),
+           state = ifelse(state == "FCT Abuja", "FCT", state)) %>% 
     gather(sex, val, female, male, total)
   
   naiis <- naiis %>% 

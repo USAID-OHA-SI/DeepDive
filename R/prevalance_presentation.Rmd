@@ -1,7 +1,7 @@
 ---
 title: "Prevalence in Nigeria"
 author: "Aaron Chafetz"
-date: "December 6, 2018"
+date: "Jan 14, 2018"
 output: slidy_presentation
 ---
 
@@ -17,7 +17,7 @@ library(scales)
 
 main_blue <- "#6585CF"
 main_gray <- "#4D4D4D"
-comp_gray <- "#808080"
+comp_gray <- "#989898" #"#808080"
 comp_teal <- "#6BB1C9"
 comp_purp <- "#7E6BC9"
 goal_gold <- "#CEB966"
@@ -39,8 +39,8 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
 
 ## Where is NAIIS?
 
-- Preliminary results for NAIIS survey was made available in 6 states.
-   - Bauchi, Cross River, Enugu, Kano, Lagos, Nasarawa
+- Preliminary results for NAIIS survey was made available in all but 10 states.
+   - MISSING: Benue, Borno, Delta, Ebonyi, Edo, Katsina, Oyo, Plateau, Yobe, Zamfara
 - Full results will be released in March
 
 
@@ -81,7 +81,7 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
       ggplot(aes(survey, prevalence, group = state)) +
       geom_path(size = 2, color = viz_prev$col) +
       geom_point(size = 6, pch=21, color = "white", fill = viz_prev$col, stroke = 2) +
-      scale_y_continuous(#labels=function(x) paste0(x *100,"%"), 
+      scale_y_continuous(labels=function(x) paste0(x *100,"%"),
                          breaks = seq(0, .10, .05)) +
       labs(x = "", caption = "S = Spectrum, N = NAIIS") +
       facet_wrap(. ~ state) +
@@ -216,11 +216,6 @@ viz_datapack %>%
 
 ```{r plhiv_across_update}
 
-  grwth_states <- viz_prev %>%
-    mutate(state = as.character(state)) %>% 
-    filter(change < 0) %>% 
-    pull(state)
-
 viz_datapack %>% 
   ggplot(aes(state, plhiv_merge, fill = new_col)) +
   geom_col(fill = viz_datapack$new_col) +
@@ -235,7 +230,8 @@ viz_datapack %>%
   theme(text = element_text(size = 18),
         axis.title = element_text(color = main_gray),
         axis.ticks = element_blank(),
-        panel.border = element_blank())
+        panel.border = element_blank(),
+        plot.caption = element_text(color = main_gray))
 
 rm(viz_datapack, new_plhiv)
 
@@ -262,31 +258,33 @@ rm(viz_datapack, new_plhiv)
     geom_col(fill = viz_burden$col_type) +
     scale_y_continuous(label = comma) +
     coord_flip() +
-    labs(x = "", y = "PLHIV") +
+    labs(x = "", y = "PLHIV", caption = "state bars ordered on unmet need (blue)") +
     theme_bw() +
     theme(text = element_text(size = 18),
           axis.title = element_text(color = main_gray),
           axis.ticks = element_blank(),
-          panel.border = element_blank())
+          panel.border = element_blank(),
+          plot.caption = element_text(color = main_gray))
   
 ```
 
 ## ... and shows Nigeria still has a ways to go before reaching the second 90.
 
 ```{r burden_share}
-viz_burden %>% 
-    ggplot(aes(state, val, fill = type)) +
-    geom_bar(position = "fill",stat = "identity", fill = viz_burden$col_type) +
-    geom_hline(linetype = "dashed", yintercept = .81, color = goal_gold, size = 1) +
-    scale_y_continuous(label = percent) +
-    coord_flip() +
-    labs(x = "", y = "Share of PLHIV") +
-    theme_bw() +
-    theme(text = element_text(size = 18),
-          axis.title = element_text(color = main_gray),
-          axis.ticks = element_blank(),
-          panel.border = element_blank())
 
+  viz_burden %>% 
+      ggplot(aes(state, val, fill = type)) +
+      geom_bar(position = "fill",stat = "identity", fill = viz_burden$col_type) +
+      geom_hline(linetype = "dashed", yintercept = .81, color = goal_gold, size = 1) +
+      scale_y_continuous(label = percent) +
+      coord_flip() +
+      labs(x = "", y = "Share of PLHIV", caption = "state bars ordered on unmet need (blue)") +
+      theme_bw() +
+      theme(text = element_text(size = 18),
+            axis.title = element_text(color = main_gray),
+            axis.ticks = element_blank(),
+            panel.border = element_blank(),
+            plot.caption = element_text(color = main_gray))
   
   rm(viz_burden)
 ```
@@ -299,6 +297,7 @@ viz_burden %>%
     mutate(state = as_factor(state)) %>% 
     select(state, `Unmet Burden` = unmet_burden, TX_NEW, HTS_TST) %>% 
     gather(type, val, -state) %>% 
+    filter(!is.na(val)) %>% 
     mutate(type = factor(type, c("Unmet Burden", "HTS_TST", "TX_NEW")))
 
   viz_ind %>% 
@@ -319,7 +318,7 @@ viz_burden %>%
   rm(viz_ind)
 ```
 
-## A quick look at the estimated cascade shows low 1st 90, but sucessful 2nd and 3rd 90.
+## The estimated cascade shows low 1st 90, but sucessful 2nd and 3rd 90.
 
 ```{r cascade, fig.width= 16}
 
@@ -336,20 +335,20 @@ viz_burden %>%
   #   mutate(PLHIV = pop * `Prev 15+`,
   #          Diagnosed = PLHIV * Diagnosed,
   #          `On Treatment` = Diagnosed * `On Treatment`,
-  #          `Virally Supressed` = `On Treatment` * `Virally Supressed`) %>% 
+  #          `Virally Suppressed` = `On Treatment` * `Virally Suppressed`) %>% 
   #   select(-`Prev 15+`, -pop, -PLHIV) %>% 
   #   gather(type, val, -state, -sex)
   # 
   
   viz_cas <- cascade_est %>%
     mutate(`On Treatment` = Diagnosed * `On Treatment`,
-           `Virally Supressed` = `On Treatment` * `Virally Supressed`) %>% 
+           `Virally Suppressed` = `On Treatment` * `Virally Suppressed`) %>% 
     select(-`Prev 15+`, -pop) %>% 
     gather(type, val, -state, -sex) %>% 
     mutate(type = ifelse(type == "On Treatment", "On Tx", type),
            type = case_when(type == "Diagnosed" ~ "1st 90",
                             type == "On Tx"     ~ "2nd 90",
-                            type == "Virally Supressed" ~ "3rd 90"),
+                            type == "Virally Suppressed" ~ "3rd 90"),
            sex = str_to_title(sex),
            sex = factor(sex, levels = c("Total", "Female", "Male")))
   
@@ -362,18 +361,20 @@ viz_burden %>%
   viz_cas <- viz_cas %>% 
     mutate(state = factor(state, levels = state_order))
   
-  #viz
+ grph_cas <- function(sex_type, color){
+  
   viz_cas %>% 
+    filter(sex == sex_type) %>% 
     ggplot(aes(type, val, fill = sex)) +
     geom_col() +
     geom_text(aes(label = percent(val, accuracy = 1)), 
               color = main_gray, size = 5,
               vjust = -1) +
     scale_y_continuous(label = percent) +
-    scale_fill_manual(values=alpha(c(comp_teal, main_blue, comp_purp))) +
-    expand_limits(y = .75) +
-    facet_grid(sex ~ state, switch = "y") +
-    labs(x = "", y = "") +
+    scale_fill_manual(values=alpha(c(color))) +
+    expand_limits(y = 1) +
+    facet_wrap(. ~ state) +
+    labs(x = "", y = "", subtitle = sex_type) +
     theme_bw() +
     theme(text = element_text(size = 18),
           legend.position = "none",
@@ -383,13 +384,34 @@ viz_burden %>%
           panel.border = element_blank(),
           strip.background = element_rect(fill = "white", color = "white"),
           strip.text = element_text(color = main_gray))
-  
-  rm(datapack_sex, viz_cas)
+}
+
+grph_cas("Total", comp_teal)
+
 ```
 
 NOTE: For 90-90-90 achievement, "[s]ample size is small and should be interpreted with caution."
 
-## Comparing program results to NAIIS, Enugu and Cross River are heavily under reporting in MER.
+## We can also see how this looks for females...
+
+```{r cascade_female, fig.width= 16}
+grph_cas("Female", main_blue)
+```
+
+NOTE: For 90-90-90 achievement, "[s]ample size is small and should be interpreted with caution."
+
+## ...and actual we see higher achievement for males in many districts.
+
+```{r cascade_male, fig.width= 16}
+grph_cas("Male", comp_purp)
+  
+  rm(datapack_sex, viz_cas, grph_cas)
+```
+
+NOTE: For 90-90-90 achievement, "[s]ample size is small and should be interpreted with caution."
+
+
+## Comparing program results to NAIIS, Rivers and Anambra are heavily under reporting in MER compared with FCT, Adamawa, and Niger whihc are heavily under reporting.
 
 ```{r tx_curr}
   
@@ -399,13 +421,19 @@ NOTE: For 90-90-90 achievement, "[s]ample size is small and should be interprete
            `On Treatment` = Diagnosed * `On Treatment`) %>% 
     select(state:Diagnosed)
   
+  reporting <- left_join(tx_curr_est, tx_curr, by = c("state", "sex")) %>% 
+    filter(sex == "total") %>% 
+    mutate(reporting = ifelse(Diagnosed > TX_CURR, "MER total under reported", "MER total over reported")) %>% 
+    select(state, reporting)
+
   viz_tx_curr_comp <- left_join(tx_curr_est, tx_curr, by = c("state", "sex")) %>% 
-    gather(type, val, -state, -sex) %>% 
+    left_join(., reporting, by = "state") %>% 
+    gather(type, val, -state, -sex, -reporting) %>% 
     arrange(state, sex, type) %>% 
     mutate(sex = str_to_title(sex),
            sex = factor(sex, c("Total", "Female", "Male")),
-           lab = case_when(state == "Enugu" & type == "TX_CURR" & sex == "Total" ~ "MER",
-                           state == "Enugu"& type == "Diagnosed" & sex == "Total" ~ "NAIIS"))
+           lab = case_when(state == "Kaduna" & type == "TX_CURR" & sex == "Total" ~ "MER",
+                           state == "Kaduna"& type == "Diagnosed" & sex == "Total" ~ "NAIIS"))
   
   #order
   state_order <- viz_tx_curr_comp %>% 
@@ -414,17 +442,18 @@ NOTE: For 90-90-90 achievement, "[s]ample size is small and should be interprete
     pull(state)
   
   viz_tx_curr_comp <- viz_tx_curr_comp %>% 
-    mutate(state = factor(state, levels = state_order))
+    mutate(state = factor(state, levels = state_order)) %>% 
+    filter(!is.na(reporting))
   
   #viz
   viz_tx_curr_comp %>%
     ggplot(aes(state, val)) +
-    geom_path(color = main_blue) +
-    geom_point(color = ifelse(viz_tx_curr_comp$type == "TX_CURR", comp_gray, main_blue),
-               size = 5) +
     geom_hline(yintercept = 1, color = comp_gray) +
+    geom_path(color = comp_gray, na.rm = TRUE) +
+    geom_point(color = ifelse(viz_tx_curr_comp$type == "TX_CURR", comp_gray, main_blue),
+               size = 5, na.rm = TRUE) +
     geom_text(aes(label = lab),
-              hjust = .5, vjust = -1,
+              hjust = ifelse(viz_tx_curr_comp$type == "TX_CURR", -.5, 1.5), #vjust = -1,
               size = 5,
               color = ifelse(viz_tx_curr_comp$type == "TX_CURR", comp_gray, main_blue),
               na.rm = TRUE) +
@@ -432,7 +461,7 @@ NOTE: For 90-90-90 achievement, "[s]ample size is small and should be interprete
     coord_flip() +
     expand_limits(y = 0) +
     labs(x = "", y  = "") +
-    facet_wrap(. ~ sex) +
+    facet_grid(reporting ~ sex, scales = "free_y") +
     theme_bw() +
     theme(text = element_text(size = 18),
           legend.position = "none",
@@ -442,7 +471,7 @@ NOTE: For 90-90-90 achievement, "[s]ample size is small and should be interprete
           strip.background = element_rect(fill = "white", color = "white"),
           strip.text = element_text(color = main_gray)) 
   
-  rm(tx_curr_est, viz_tx_curr_comp, cascade_est)
+  rm(tx_curr_est, viz_tx_curr_comp, cascade_est, reporting)
 ```
 
 ## recap the Discussion Points
