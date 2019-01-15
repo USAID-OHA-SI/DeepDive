@@ -114,23 +114,33 @@ library(scales)
 
 # NAIIS -------------------------------------------------------------------
   
-  naiis <- read_csv("Data/NAIIS_raw_all.csv")
+  # naiis <- read_csv("Data/NAIIS_raw_all.csv")
+  # 
+  # naiis <- naiis %>% 
+  #   select(-contains("ci"), -n) %>% 
+  #   filter(group != "Viral suppression",
+  #          !type %in% c("15-24 years", "15-49 years")) %>% 
+  #   mutate(type = case_when(type == "0-14 years"  ~ "Prev <15",
+  #                           type == "15-64 years" ~ "Prev 15+",
+  #                           TRUE                  ~ type),
+  #          state = ifelse(state == "FCT Abuja", "FCT", state)) %>% 
+  #   gather(sex, val, female, male, total)
+  # 
+  # naiis <- naiis %>% 
+  #   filter(type != "Prev <15") %>% 
+  #   select(-group) %>% 
+  #   mutate(val = val/100) %>% 
+  #   spread(type, val)
   
-  naiis <- naiis %>% 
-    select(-contains("ci"), -n) %>% 
-    filter(group != "Viral suppression",
-           !type %in% c("15-24 years", "15-49 years")) %>% 
-    mutate(type = case_when(type == "0-14 years"  ~ "Prev <15",
-                            type == "15-64 years" ~ "Prev 15+",
-                            TRUE                  ~ type),
-           state = ifelse(state == "FCT Abuja", "FCT", state)) %>% 
-    gather(sex, val, female, male, total)
-  
-  naiis <- naiis %>% 
-    filter(type != "Prev <15") %>% 
-    select(-group) %>% 
-    mutate(val = val/100) %>% 
-    spread(type, val)
+  naiis <- read_xlsx("Data/Updated USAID NAIIS Result Scenarios 14.01.19.xlsx",
+                     sheet = "REACHING_ECT_TX_COVERAGE RATES") %>% 
+    select(state, `Prev 15+_total`:`Virally Suppressed_total`) %>% 
+    filter(!state %in% c("SNU1", "zTotal", NA)) %>% 
+    gather(type, val, -state)  %>% 
+    separate(type, c("type", "sex"), sep = "_") %>% 
+    mutate(val = as.numeric(val)) %>% 
+    spread(type, val) %>% 
+    mutate(`Prev 15+` = `Prev 15+` /100)
   
 # EXPORT ------------------------------------------------------------------
 
