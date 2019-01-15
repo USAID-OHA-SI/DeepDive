@@ -1,0 +1,132 @@
+---
+title: "Low Yield Sites"
+author: "Aaron Chafetz"
+date: "December 6, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(tidyverse)
+library(scales)
+
+#import
+folderpath <- "C:/Users/achafetz/Documents/GitHub/DeepDive/Output"
+tx_sites <- read_csv(file.path(folderpath, "lowyield_tx.csv"))
+pmtct_sites <- read_csv(file.path(folderpath, "lowyield_pmtct.csv"))
+
+
+main_blue <- "#6585CF"
+main_gray <- "#4D4D4D"
+comp_gray <- "#808080"
+comp_teal <- "#6BB1C9"
+comp_purp <- "#7E6BC9"
+goal_gold <- "#CEB966"
+
+```
+
+## Overview
+
+This report is a quick look into the volume of sites that are low yield, ie have 10 or less patients on treatment or have a positivity of zero for PMTCT_STAT.
+
+## TX_CURR
+
+```{r tx_curr}
+#how many sites are reporting TX_CURR (exlusive of reporting 0)?
+tot_tx <- tx_sites %>%
+  distinct(sitename) %>% 
+  nrow()
+
+#how many sites are reporting <=10 TX_CURR?
+low_tx <- tx_sites %>% 
+  filter(tx_curr_fy18apr <= 10) %>% 
+  nrow()
+
+#how many USAID sites are reporting TX_CURR (exlusive of reporting 0)?
+usaid_tx <- tx_sites %>%
+  filter(fundingagency == "USAID") %>% 
+  distinct(sitename) %>% 
+  nrow()
+
+#how many USAID sites are reporting <10 TX_CURR?
+usaid_low_tx <- tx_sites %>% 
+  filter(fundingagency == "USAID",
+         tx_curr_fy18apr <= 10) %>% 
+  nrow()
+
+```
+
+Looking first at TX_CURR, were `r tot_tx` sites reporting on TX_CURR at FY2018 APR in Nigeria. USAID is in `r usaid_tx` of these facilities. Of all the sites reporting on TX_CURR, `r low_tx` have 10 or less patients on treatment. USAID is in  `r percent(usaid_low_tx/low_tx, accuracy = 1)` of those low sites.
+
+Nearly two-thirds of USAID's sites are in four states - Rivers, Akwa Ibom, Lagos, and Niger.
+
+```{r}
+
+snu_order <- tx_sites %>% 
+  filter(snu1 != "_Military Nigeria") %>% 
+  count(snu1) %>% 
+  arrange(n) %>% 
+  pull(snu1)
+
+tx_sites %>% 
+  filter(fundingagency == "USAID",
+         tx_curr_fy18apr <= 10) %>% 
+  count(snu1, sort = TRUE) %>% 
+  mutate(cum = cumsum(n)/sum(n))
+
+
+tx_snu <- tx_sites %>% 
+  filter(snu1 != "_Military Nigeria") %>% 
+  mutate(reporting = ifelse(tx_curr_fy18apr > 10, "Reporting", "None"),
+         snu1 = factor(snu1, levels = snu_order),
+         reporting = factor(reporting, levels = c("Reporting", "None")),
+         rep_col = ifelse(reporting == "Reporting", comp_gray, main_blue)) %>% 
+  count(snu1, fundingagency, reporting, rep_col) %>% 
+  arrange(snu1)
+  
+tx_snu %>% 
+  ggplot(aes(snu1, n, fill = reporting)) +
+  geom_col() +
+  scale_fill_manual(values=alpha(c(main_gray, main_gray))) +
+  coord_flip() +
+  labs(x = "", y = "number of sites") +
+  theme(legend.position = "none")
+
+tx_snu %>% 
+  ggplot(aes(snu1, n, fill = reporting)) +
+  geom_col(fill = tx_snu$rep_col) +
+  #scale_fill_manual(values=alpha(c(comp_gray, main_blue))) +
+  coord_flip() +
+  labs(x = "", y = "number of sites") +
+  theme(legend.position = "none")
+
+
+tx_sites %>% 
+  filter(snu1 != "_Military Nigeria",
+         tx_curr_fy18apr < 10) %>% 
+  count(snu1, fundingagency, sort = TRUE) %>% 
+  ggplot(aes(reorder(snu1, n), n, fill = fundingagency)) +
+  geom_col() + 
+  coord_flip() +
+  labs(x = "", y = "# of sites") +
+  theme(axis.ticks = element_blank()) +
+  coord_flip() +
+  labs(x = "", y = "# of sites") +
+  theme(axis.ticks = element_blank())
+
+
+tx_sites %>% 
+  filter(snu1 != "_Military Nigeria") %>% 
+  count(snu1, fundingagency, sort = TRUE) %>% 
+  ggplot(aes(reorder(snu1, n), n)) +
+  geom_col() + 
+  coord_flip() +
+  labs(x = "", y = "# of sites") +
+  theme(axis.ticks = element_blank())
+  
+  
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
