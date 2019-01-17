@@ -1,7 +1,7 @@
 ---
 title: "Prevalence in Nigeria"
 author: "Aaron Chafetz"
-date: "Jan 14, 2018"
+date: "Updated: Jan 15, 2019"
 output: slidy_presentation
 ---
 
@@ -37,11 +37,10 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
 
 ```
 
-## Where is NAIIS?
+## NAIIS Notes
 
-- Preliminary results for NAIIS survey was made available in all but 10 states.
-   - MISSING: Benue, Borno, Delta, Ebonyi, Edo, Katsina, Oyo, Plateau, Yobe, Zamfara
-- Full results will be released in March
+- Updated from December Retreat
+- Final results will be released in March
 
 
 
@@ -53,9 +52,21 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
 - How to interpret the current Nigeria NAIIS results? What do they mean and what don't they mean? 
 - What should be USAID’s focus? Geographic, priority populations, population characteristics, service delivery models, targets, budgets?
 
-## The initial results show a decline in 23 of the 27 states compared with recent Spectrum prevalence.
+```{r calc_decline}
+n_decrease <- prev %>% 
+  select(-lab_state) %>% 
+  filter(survey != "Spectrum2016") %>% 
+  spread(survey, prevalence) %>% 
+  filter(Spectrum2018 > NAIIS2018) %>% 
+  nrow()
+
+n_states <- unique(prev$state) %>% length()
+```
+## The initial results show a decline in `r n_decrease` of the `r n_states` states compared with recent Spectrum prevalence.
 
 ```{r prev}
+  
+  rm(n_decrease, n_states)
 
   viz_prev <- prev %>% 
     select(-lab_state) %>% 
@@ -125,7 +136,7 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
               size = 5,
               color = ifelse(viz_plhiv_i$pd == "plhiv_old", comp_gray, main_blue),
               na.rm = TRUE) +
-    scale_y_continuous(limits = c(0, 300000), label = comma) +
+    scale_y_continuous(limits = c(0, 305000), label = comma) +
     coord_flip() +
     expand_limits(y = 0) +
     labs(y = "PLHIV estimate", x = "") +
@@ -141,23 +152,33 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
 
 ```
 
-## ... and now NAIIS projects lower PLHIV in 19 of the 27 initial states.
+```{r calc_states}
+  n_states <- nrow(burden)
+  
+  n_decrease <- burden %>% 
+   filter(plhiv_est < plhiv_old) %>% 
+   nrow()
+  
+  n_increase <- n_states - n_decrease
+```
+
+## ... and now NAIIS projects lower PLHIV in `r n_decrease` of the `r n_states` initial states.
 
 ```{r plhiv_updated}
-
+  
   viz_plhiv %>% 
     ggplot(aes(state, val)) +
     geom_path(color = main_blue,
-              size = 1) +
+              size = 1, na.rm = TRUE) +
     geom_point(color = ifelse(viz_plhiv$pd == "plhiv_old", comp_gray, main_blue),
-               size = 6) +
+               size = 6, na.rm = TRUE) +
     geom_text(aes(label = lab), 
               hjust = .5, vjust = -1, 
               check_overlap = TRUE,
               size = 5,
               color = ifelse(viz_plhiv$pd == "plhiv_old", comp_gray, main_blue),
               na.rm = TRUE) +
-    scale_y_continuous(limits = c(0, 300000), label = comma) +
+    scale_y_continuous(limits = c(0, 305000), label = comma) +
     coord_flip() +
     expand_limits(y = 0) +
     labs(y = "PLHIV estimate", x = "") +
@@ -172,101 +193,116 @@ naiis <- read_rds(file.path(folderpath, "naiis.rds"))
   rm(viz_plhiv)
 ```
 
-## Looking at those states in comparison to other states' PLHIV
+## ...which means `r n_increase` states saw an increase in PLHIV between the surveys.
 
-```{r plhiv_across}
-viz_datapack <- datapack %>% 
-  arrange(plhiv_old) %>% 
-  mutate(state = as_factor(state),
-         new_col = ifelse(state %in% unique(prev$state), main_blue, comp_gray))
+```{r plhiv_inc}
+  
+  rm(n_states, n_decrease)
 
-new_plhiv <- burden %>% 
-  mutate(plhiv = prevalence_naiis * pop_num) %>% 
-  select(state, plhiv)
-
-suppressWarnings(
-viz_datapack <- viz_datapack %>% 
-  left_join(new_plhiv, by = "state") %>% 
-  arrange(plhiv_old) %>% 
-  mutate(state = as_factor(state),
-         plhiv_merge = ifelse(!is.na(plhiv), plhiv, plhiv_old),
-         placeholder = ifelse(!is.na(plhiv), plhiv_old, as.double(NA))) 
-)
-
-viz_datapack %>% 
-  ggplot(aes(state, plhiv_old, fill = new_col)) +
-  geom_col(fill = viz_datapack$new_col) +
-  geom_errorbar(aes(ymax = placeholder, ymin = placeholder), 
-                width = .75, size = 1, 
-                color = main_blue, 
-                na.rm = TRUE) +
-  scale_y_continuous(limits = c(0, 300000), labels = comma) +
-  labs(x = "", y = "PLHIV", caption = "Gray bars denote states not included in NAIIS") +
-  coord_flip() +
-  theme_bw() +
-  theme(text = element_text(size = 18),
-        axis.title = element_text(color = main_gray),
-        axis.ticks = element_blank(),
-        panel.border = element_blank(),
-        plot.caption = element_text(color = main_gray))
-
+  viz_plhiv_inc <- burden %>% 
+    select(state, plhiv_old, plhiv_est) %>%
+    arrange(plhiv_old) %>% 
+    mutate(state = as_factor(state),
+           increase = plhiv_est > plhiv_old) %>% 
+    gather(pd, val, -state, -increase) %>% 
+    mutate(lab = case_when(state == "Anambra" & pd == "plhiv_old" ~ "Old",
+                           state == "Anambra" & pd == "plhiv_est" ~ "NAIIS",
+                           TRUE                                 ~ as.character(NA)),
+           val = ifelse(increase == TRUE, val, NA))
+  
+  viz_plhiv_inc %>% 
+    ggplot(aes(state, val)) +
+    geom_path(color = main_blue,
+              size = 1, na.rm = TRUE) +
+    geom_point(color = ifelse(viz_plhiv_inc$pd == "plhiv_old", comp_gray, main_blue),
+               size = 6, na.rm = TRUE) +
+    geom_text(aes(label = lab), 
+              hjust = .5, vjust = -1, 
+              check_overlap = TRUE,
+              size = 5,
+              color = ifelse(viz_plhiv_inc$pd == "plhiv_old", comp_gray, main_blue),
+              na.rm = TRUE) +
+    scale_y_continuous(limits = c(0, 305000), label = comma) +
+    coord_flip() +
+    expand_limits(y = 0) +
+    labs(y = "PLHIV estimate", x = "") +
+    theme_bw() +
+    theme(legend.position = "none",
+          text = element_text(size = 18),
+          axis.ticks = element_blank(),
+          axis.title = element_text(color = main_gray),
+          panel.border = element_blank(),
+          axis.line = element_line(color = main_gray))
+  
+  rm(viz_plhiv_inc)
 ```
 
-## ...and then the updated PLHIV estimate with NAIIS
+## Let's just look at the new PLHIV by state
 
-```{r plhiv_across_update}
-
-viz_datapack %>% 
-  ggplot(aes(state, plhiv_merge, fill = new_col)) +
-  geom_col(fill = viz_datapack$new_col) +
-  geom_errorbar(aes(ymax = placeholder, ymin = placeholder), 
-                width = .75, size = 1, 
-                color = ifelse(viz_datapack$placeholder < viz_datapack$plhiv_merge,"white",main_blue), 
-                na.rm = TRUE) +
-  scale_y_continuous(limits = c(0, 300000), labels = comma) +
-  labs(x = "", y = "PLHIV", caption = "Gray bars denote states not included in NAIIS") +
-  coord_flip() +
-  theme_bw() +
-  theme(text = element_text(size = 18),
-        axis.title = element_text(color = main_gray),
-        axis.ticks = element_blank(),
-        panel.border = element_blank(),
-        plot.caption = element_text(color = main_gray))
-
-rm(viz_datapack, new_plhiv)
-
-```
-
-## Given this update, Nigeria still has a large unmet need in these districts
-
-
-```{r burden}
-#unmet need
+```{r new_plhiv}
+  #unmet need
   viz_burden <- burden %>% 
+    arrange(plhiv_old) %>% 
     select(state, TX_CURR, unmet_burden) %>% 
-    arrange(unmet_burden) %>% 
-    filter(!is.na(TX_CURR)) %>% 
+    #arrange(unmet_burden) %>% 
+    #filter(!is.na(TX_CURR)) %>% 
     mutate(state = as_factor(state)) %>% 
     gather(type, val, -state) %>% 
     arrange(state, type) %>% 
-    mutate(col_type = ifelse(type == "TX_CURR", comp_gray, main_blue),
+    mutate(col_type = ifelse(type == "TX_CURR", comp_gray, comp_teal),
            type = ifelse(type == "unmet_burden", "Unmet Need", type),
-           type = as_factor(type))
+           type = as_factor(type),
+           val = ifelse(is.na(val), 0, val)) 
+  
+  #function to graph plhiv/burden
+  grph_burden <- function(fill_col){
+             viz_burden %>% 
+               ggplot(aes(state, val)) +
+               geom_col(fill = fill_col) +
+               scale_y_continuous(limits = c(0, 305000), label = comma) +
+               coord_flip() +
+               labs(x = "", y = "PLHIV") +
+               theme_bw() +
+               theme(text = element_text(size = 18),
+                     axis.title = element_text(color = main_gray),
+                     axis.ticks = element_blank(),
+                     panel.border = element_blank(),
+                     plot.caption = element_text(color = main_gray))
+           }
+  
+  grph_burden(main_blue)
 
-  viz_burden %>% 
-    ggplot(aes(state, val)) +
-    geom_col(fill = viz_burden$col_type) +
-    scale_y_continuous(label = comma) +
-    coord_flip() +
-    labs(x = "", y = "PLHIV", caption = "state bars ordered on unmet need (blue)") +
-    theme_bw() +
-    theme(text = element_text(size = 18),
-          axis.title = element_text(color = main_gray),
-          axis.ticks = element_blank(),
-          panel.border = element_blank(),
-          plot.caption = element_text(color = main_gray))
+```
+
+## We should reorder our visual on the new PLHIV estimates.
+
+```{r new_plhiv_ordered}
+  #Reordered PLHIV
+  state_order_new <- burden %>% 
+    arrange(plhiv_est) %>% 
+    pull(state)
+  
+  viz_burden <- viz_burden %>% 
+    mutate(state = factor(state, state_order_new)) %>% 
+    arrange(state)
+  
+  grph_burden(main_blue)
+  
+  rm(state_order_new)
   
 ```
+
+
+## Breaking down PLHIV, we can see Nigeria still has a large unmet need
+
+```{r burden}
+#unmet need
+ grph_burden(viz_burden$col_type)
+
+```
+
+
+In the above graph, gray bars depict the amount of treatment coverage (FY18 APR MER TX_CURR) and teal shows our unmet need/burden.
 
 ## ... and shows Nigeria still has a ways to go before reaching the second 90.
 
@@ -278,7 +314,7 @@ rm(viz_datapack, new_plhiv)
       geom_hline(linetype = "dashed", yintercept = .81, color = goal_gold, size = 1) +
       scale_y_continuous(label = percent) +
       coord_flip() +
-      labs(x = "", y = "Share of PLHIV", caption = "state bars ordered on unmet need (blue)") +
+      labs(x = "", y = "Share of PLHIV", caption = " ") +
       theme_bw() +
       theme(text = element_text(size = 18),
             axis.title = element_text(color = main_gray),
@@ -286,8 +322,10 @@ rm(viz_datapack, new_plhiv)
             panel.border = element_blank(),
             plot.caption = element_text(color = main_gray))
   
-  rm(viz_burden)
+  rm(viz_burden, grph_burden)
 ```
+
+In the above graph, gray bars depict the amount of treatment coverage (FY18 APR MER TX_CURR) and teal shows our unmet need/burden.
 
 ## It doesn't appear that our targets heavily align with this unmet need.
 
@@ -298,15 +336,16 @@ rm(viz_datapack, new_plhiv)
     select(state, `Unmet Burden` = unmet_burden, TX_NEW, HTS_TST) %>% 
     gather(type, val, -state) %>% 
     filter(!is.na(val)) %>% 
-    mutate(type = factor(type, c("Unmet Burden", "HTS_TST", "TX_NEW")))
+    mutate(type = factor(type, c("Unmet Burden", "HTS_TST", "TX_NEW")),
+           val = val / 1000)
 
   viz_ind %>% 
     ggplot(aes(state, val)) +
-    geom_col(fill = ifelse(viz_ind$type == "Unmet Burden", main_blue, comp_teal)) +
+    geom_col(fill = ifelse(viz_ind$type == "Unmet Burden", comp_teal, comp_purp)) +
     coord_flip() +
     facet_grid(. ~ type, scales = "free_x") +
     scale_y_continuous(label = comma) +
-    labs(x = "", y = "") +
+    labs(x = "", y = "", caption = "values in 1,000's") +
     theme_bw() +
     theme(text = element_text(size = 18),
           axis.title = element_text(color = main_gray),
@@ -318,7 +357,8 @@ rm(viz_datapack, new_plhiv)
   rm(viz_ind)
 ```
 
-## The estimated cascade shows low 1st 90, but sucessful 2nd and 3rd 90.
+
+## The cascade shows low 1st 90, but sucessful 2nd and 3rd 90.
 
 ```{r cascade, fig.width= 16}
 
@@ -350,7 +390,8 @@ rm(viz_datapack, new_plhiv)
                             type == "On Tx"     ~ "2nd 90",
                             type == "Virally Suppressed" ~ "3rd 90"),
            sex = str_to_title(sex),
-           sex = factor(sex, levels = c("Total", "Female", "Male")))
+           sex = factor(sex, levels = c("Total", "Female", "Male")),
+           val = ifelse(is.na(val), 0, val))
   
   #order
   state_order <- viz_cas %>% 
@@ -366,10 +407,10 @@ rm(viz_datapack, new_plhiv)
   viz_cas %>% 
     filter(sex == sex_type) %>% 
     ggplot(aes(type, val, fill = sex)) +
-    geom_col() +
+    geom_col(na.rm = TRUE) +
     geom_text(aes(label = percent(val, accuracy = 1)), 
               color = main_gray, size = 5,
-              vjust = -1) +
+              vjust = -1, na.rm = TRUE) +
     scale_y_continuous(label = percent) +
     scale_fill_manual(values=alpha(c(color))) +
     expand_limits(y = 1) +
@@ -400,7 +441,7 @@ grph_cas("Female", main_blue)
 
 NOTE: For 90-90-90 achievement, "[s]ample size is small and should be interpreted with caution."
 
-## ...and actual we see higher achievement for males in many districts.
+## ...and actual we see higher achievement for males in many states.
 
 ```{r cascade_male, fig.width= 16}
 grph_cas("Male", comp_purp)
@@ -411,65 +452,57 @@ grph_cas("Male", comp_purp)
 NOTE: For 90-90-90 achievement, "[s]ample size is small and should be interpreted with caution."
 
 
-## Comparing program results to NAIIS, Rivers and Anambra are heavily under reporting in MER compared with FCT, Adamawa, and Niger whihc are heavily under reporting.
+## Comparing program results to NAIIS, Rivers, Egunu and Anambra are heavily under reporting in MER compared with FCT, Adamawa, and Niger which are heavily under reporting.
 
-```{r tx_curr}
+```{r tx_curr, message=FALSE, warning=FALSE}
   
   tx_curr_est <- cascade_est %>%
-    mutate(PLHIV = pop * `Prev 15+`,
-           Diagnosed = PLHIV * Diagnosed,
-           `On Treatment` = Diagnosed * `On Treatment`) %>% 
-    select(state:Diagnosed)
-  
-  reporting <- left_join(tx_curr_est, tx_curr, by = c("state", "sex")) %>% 
-    filter(sex == "total") %>% 
-    mutate(reporting = ifelse(Diagnosed > TX_CURR, "MER total under reported", "MER total over reported")) %>% 
-    select(state, reporting)
+  filter(sex == "total") %>% 
+  mutate(PLHIV = pop * `Prev 15+`,
+         Diagnosed = PLHIV * Diagnosed,
+         `On Treatment` = Diagnosed * `On Treatment`) %>% 
+  select(state, Diagnosed)
 
-  viz_tx_curr_comp <- left_join(tx_curr_est, tx_curr, by = c("state", "sex")) %>% 
-    left_join(., reporting, by = "state") %>% 
-    gather(type, val, -state, -sex, -reporting) %>% 
-    arrange(state, sex, type) %>% 
-    mutate(sex = str_to_title(sex),
-           sex = factor(sex, c("Total", "Female", "Male")),
-           lab = case_when(state == "Kaduna" & type == "TX_CURR" & sex == "Total" ~ "MER",
-                           state == "Kaduna"& type == "Diagnosed" & sex == "Total" ~ "NAIIS"))
-  
-  #order
-  state_order <- viz_tx_curr_comp %>% 
-    filter(sex == "Total", type == "Diagnosed") %>% 
-    arrange(val) %>% 
-    pull(state)
-  
-  viz_tx_curr_comp <- viz_tx_curr_comp %>% 
-    mutate(state = factor(state, levels = state_order)) %>% 
-    filter(!is.na(reporting))
-  
-  #viz
-  viz_tx_curr_comp %>%
-    ggplot(aes(state, val)) +
-    geom_hline(yintercept = 1, color = comp_gray) +
-    geom_path(color = comp_gray, na.rm = TRUE) +
-    geom_point(color = ifelse(viz_tx_curr_comp$type == "TX_CURR", comp_gray, main_blue),
-               size = 5, na.rm = TRUE) +
-    geom_text(aes(label = lab),
-              hjust = ifelse(viz_tx_curr_comp$type == "TX_CURR", -.5, 1.5), #vjust = -1,
-              size = 5,
-              color = ifelse(viz_tx_curr_comp$type == "TX_CURR", comp_gray, main_blue),
-              na.rm = TRUE) +
-    scale_y_continuous(label = comma) +
-    coord_flip() +
-    expand_limits(y = 0) +
-    labs(x = "", y  = "") +
-    facet_grid(reporting ~ sex, scales = "free_y") +
-    theme_bw() +
-    theme(text = element_text(size = 18),
-          legend.position = "none",
-          axis.title = element_text(color = main_gray),
-          axis.ticks = element_blank(),
-          panel.border = element_blank(),
-          strip.background = element_rect(fill = "white", color = "white"),
-          strip.text = element_text(color = main_gray)) 
+viz_tx_curr_comp <- tx_curr %>% 
+  filter(sex == "total") %>% 
+  select(-sex) %>% 
+  left_join(tx_curr_est, ., by = c("state")) %>%
+  arrange(Diagnosed) %>% 
+  mutate(state = as_factor(state), 
+         reporting = ifelse(Diagnosed > TX_CURR, "MER total under reported", "MER total over reported")) %>%
+  gather(type, val, -state, -reporting) %>% 
+  arrange(state, type) %>% 
+  mutate(lab = case_when(state == "Rivers" & type == "TX_CURR"  ~ "MER",
+                         state == "Rivers"& type == "Diagnosed" ~ "NAIIS")) %>% 
+  filter(!is.na(reporting))
+
+
+#viz
+viz_tx_curr_comp %>%
+  ggplot(aes(state, val)) +
+  geom_hline(yintercept = 1, color = comp_gray) +
+  geom_path(color = comp_gray, na.rm = TRUE) +
+  geom_point(color = ifelse(viz_tx_curr_comp$type == "TX_CURR", comp_gray, main_blue),
+             size = 5, na.rm = TRUE) +
+  geom_text(aes(label = lab),
+            hjust = ifelse(viz_tx_curr_comp$type == "TX_CURR", 1.5, -.3), #vjust = -1,
+            size = 5,
+            color = ifelse(viz_tx_curr_comp$type == "TX_CURR", comp_gray, main_blue),
+            na.rm = TRUE) +
+  scale_y_continuous(label = comma) +
+  coord_flip() +
+  expand_limits(y = 0) +
+  labs(x = "", y  = "") + #caption = "Note: Currently missing adult prevalence data by sex required for calculation.") +
+  facet_grid(reporting ~ ., scales = "free_y") +
+  theme_bw() +
+  theme(text = element_text(size = 18),
+        legend.position = "none",
+        axis.title = element_text(color = main_gray),
+        axis.ticks = element_blank(),
+        panel.border = element_blank(),
+        strip.background = element_rect(fill = "white", color = "white"),
+        strip.text = element_text(color = main_gray),
+        plot.caption = element_text(color = main_gray))
   
   rm(tx_curr_est, viz_tx_curr_comp, cascade_est, reporting)
 ```
@@ -492,4 +525,4 @@ NOTE: For 90-90-90 achievement, "[s]ample size is small and should be interprete
 - Population and PLHIV estimated from: Nigeria PEPFAR Team. (2018, Mar 16). NigeriaCOP18DataPackv2018.02.13 - Version 10 Mar 16 2018_Final
 
 
-[Link to Google Drive with data sets](https://bit.ly/2ETfVOm)
+[Link to Google Drive with data sets](https://drive.google.com/file/d/17SbhzETzdU4GuU198sUqA65S8R5wsmV7/view?usp=sharing)

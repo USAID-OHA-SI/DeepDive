@@ -8,7 +8,7 @@ library(scales)
 # MSD ---------------------------------------------------------------------
 
 #import
-  mer_all <- read_rds("~/ICPI/Data/MER_Structured_Dataset_PSNU_IM_FY17-18_20181221_v2_1.txt") %>% 
+  mer_all <- read_rds("~/ICPI/Data/MER_Structured_Dataset_PSNU_IM_FY17-18_20181221_v2_1.rds") %>% 
     filter(operatingunit == "Nigeria")
 
 #filter & aggregate to state level (level of prevalence)
@@ -104,10 +104,10 @@ library(scales)
   burden <- prev %>% 
     filter(survey == "NAIIS2018") %>%
     select(-lab_state, -survey) %>% 
-    left_join(datapack) %>% 
+    left_join(datapack, by = "state") %>% 
     select(-pop_num_m, -pop_num_f) %>% 
     mutate(plhiv_est = pop_num * prevalence) %>% 
-    left_join(mer) %>% 
+    left_join(mer, by = "state") %>% 
     mutate(unmet_burden = plhiv_est - TX_CURR) %>% 
     select(state, pop_num, plhiv_old, prevalence_naiis = prevalence, plhiv_est, TX_CURR, unmet_burden, everything())
 
